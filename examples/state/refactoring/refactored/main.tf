@@ -1,3 +1,6 @@
+# tflint-ignore-file: terraform_required_providers, terraform_required_version
+# (This file is copied over ../main.tf; it isn't a configuration on its own.)
+
 # AFTER REFACTORING. Copy over ../main.tf, then run terraform plan.
 
 # 1. RENAME: google_storage_bucket.bucket -> google_storage_bucket.datasets.
