@@ -318,7 +318,7 @@ again. For most commands, you can disable locking with the "-lock=false"
 flag, but this is not recommended.
 ```
 
-`Who` and `Created` tell you whom to ask. When the other operation finishes, the lock object is deleted and you can go ahead.
+`Who` and `Created` tell you whom to ask. (The values above are illustrative: `ID` is the lock object's generation number, a long integer, and `Who` is `user@hostname` of whoever holds the lock.) When the other operation finishes, the lock object is deleted and you can go ahead.
 
 **Waiting instead of failing.** In CI, where two pipelines can overlap, tell Terraform to retry for a while:
 

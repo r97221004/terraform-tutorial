@@ -114,7 +114,7 @@ Secrets                      none
 Review the resources above; delete what you no longer need.
 ```
 
-That's the result you want at this point: only the **state bucket** remains. Anything else, especially a disk, cluster, or VM, means something escaped: find which chapter created it and destroy that configuration, or delete it with `gcloud` if it was never in Terraform.
+That's the output on a fully cleaned project, and the result you want at this point: only the **state bucket** remains. Anything else, especially a disk, cluster, or VM, means something escaped: find which chapter created it and destroy that configuration, or delete it with `gcloud` if it was never in Terraform.
 
 ## 5. Remove the state bucket and the CI identity
 

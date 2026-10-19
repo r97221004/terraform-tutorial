@@ -260,6 +260,8 @@ Changes to Outputs:
   + running_as        = "you@example.com"
 ```
 
+(`running_as` shows the email of the account behind your ADC.)
+
 Data sources are re-read on **every** plan. They aren't cached between runs. If someone changes the thing being read, your next plan sees the new value.
 
 ### `<=`: reads deferred until apply

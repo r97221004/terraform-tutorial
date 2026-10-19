@@ -104,6 +104,8 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 
 > 💸 **About cost.** Parts 1–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Setup has you create a **budget alert** before anything else, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
 
+> 📋 **About the output shown.** Plans, errors, and test results in the docs come from real runs of Terraform 1.16 and google provider 8.7, against a sandbox project ID or local mock APIs. Your project ID, project number, emails, lock IDs, and timestamps will differ; a few outputs that depend on running cloud resources (such as `kubectl get nodes`) are illustrative and say so where it matters.
+
 Before starting Part 1, check that your tools work:
 
 ```bash
