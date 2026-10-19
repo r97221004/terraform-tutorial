@@ -45,18 +45,40 @@ If someone later turns versioning off by hand, the `gcloud` script has no idea a
 
 Terraform compares three things every time you run it:
 
-```
-  your .tf files        terraform.tfstate         the real cloud
-  (what you want)   (what Terraform built)    (what actually exists)
-         │                    │                         │
-         └────────────────────┼─────────────────────────┘
-                              ▼
-                       terraform plan
-             "create 2, change 1, destroy 0"
-                              │
-                              ▼  you review and approve
-                       terraform apply
-                  (calls the GCP APIs, updates state)
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#FFFFFF'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart TB
+    cfg["📝 your .tf files<br/>what you want"]
+    st[("🗄️ terraform.tfstate<br/>what Terraform built")]
+    real["☁️ the real cloud<br/>what actually exists"]
+    plan["🔍 terraform plan<br/>create 2, change 1, destroy 0"]
+    you(["👩‍💻 you<br/>review the diff"])
+    apply["🚀 terraform apply<br/>calls the GCP APIs"]
+
+    cfg --> plan
+    st --> plan
+    real -. refresh .-> plan
+    plan --> you
+    you ==>|"approve"| apply
+    apply -->|"creates / changes"| real
+    apply -->|"records IDs"| st
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    class you ctrl
+    class plan,apply eng
+    class cfg,st,real tgt
 ```
 
 - **Configuration** (`*.tf` files): the desired state, written by you.

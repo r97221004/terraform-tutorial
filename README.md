@@ -44,7 +44,7 @@ flowchart TB
     subgraph project["☁️ Your GCP project"]
         direction TB
 
-        subgraph vpc["🌐 Custom VPC · private subnets + Cloud NAT"]
+        subgraph vpc["🌐 Private VPC"]
             direction TB
 
             subgraph gke["☸️ GKE cluster"]
