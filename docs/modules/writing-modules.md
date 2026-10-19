@@ -76,7 +76,9 @@ writing-modules/
         ├── main.tf       # the resources
         ├── outputs.tf    # its return values
         ├── variables.tf  # its parameters
-        └── versions.tf   # minimum versions only
+        ├── versions.tf   # minimum versions only
+        └── tests/
+            └── vpc.tftest.hcl  # unit tests (Testing & Code Quality)
 ```
 
 The module's files are the same conventional layout as any configuration, plus a README. Two things are **deliberately missing** from it:
@@ -384,6 +386,7 @@ Don't write one when:
 - **Output what callers need**, with descriptions. Prefer IDs: referring to them creates dependencies.
 - **Write a README** with an example call and the inputs and outputs. [terraform-docs](https://terraform-docs.io/) can generate the tables.
 - **Introduce a module into existing code with `moved` blocks**, and check for a zero-change plan.
+- **Test reusable modules.** The `vpc` module ships with unit tests in [`tests/vpc.tftest.hcl`](../../examples/modules/writing-modules/modules/vpc/tests/vpc.tftest.hcl), runnable without credentials; [Testing & Code Quality](../team-workflow/testing-and-quality.md#terraform-test-unit-tests-for-modules) explains how they work.
 - **Pin shared modules to a version**, a Git tag or a registry version.
 
 ## Clean up

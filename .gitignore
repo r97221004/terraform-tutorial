@@ -23,6 +23,9 @@ tfplan
 *.tfvars.json
 !*.tfvars.example
 
+# Reusable modules don't commit a lock file; the root module that calls them does
+examples/**/modules/**/.terraform.lock.hcl
+
 # Local overrides
 override.tf
 override.tf.json

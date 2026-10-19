@@ -39,3 +39,10 @@ module "network" {
 | `pods_range_name`, `services_range_name` | Secondary range names for GKE's `ip_allocation_policy`. |
 
 The module doesn't configure a provider or enable APIs: the caller does both.
+
+## Tests
+
+```bash
+terraform init
+terraform test   # plan-only unit tests with a mocked provider; no credentials needed
+```
