@@ -1,0 +1,30 @@
+# kubectl apply -f wi-test.yaml && kubectl -n ml-serving logs -f wi-test
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-serving
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vllm
+  namespace: ml-serving
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wi-test
+  namespace: ml-serving
+spec:
+  serviceAccountName: vllm
+  restartPolicy: Never
+  containers:
+    - name: gcloud
+      image: google/cloud-sdk:slim
+      command: ["bash", "-c"]
+      args:
+        - |
+          gcloud storage cat "gs://${PROJECT_ID}-wi-test/hello.txt"
+      env:
+        - name: PROJECT_ID
+          value: REPLACE_WITH_PROJECT_ID
