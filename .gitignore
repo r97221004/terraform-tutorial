@@ -1,0 +1,38 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Local agent/tooling config — keep these personal, not shared
+.claude/settings.local.json
+.agents/
+.codex/
+
+# Terraform working directories and local state — never commit these
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+tfplan
+
+# Variable files usually hold project IDs and secrets; commit *.tfvars.example instead
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Backend configs with real bucket names; commit *.hcl.example instead
+backend.hcl
+
+# Service account keys — this guide never uses them, but just in case
+*.json.key
+*-key.json
+credentials.json
