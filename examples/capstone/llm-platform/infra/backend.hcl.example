@@ -1,0 +1,3 @@
+# cp backend.hcl.example backend.hcl, then set your state bucket.
+bucket = "tf-tutorial-3fa9c1-tfstate"
+prefix = "capstone/infra"
