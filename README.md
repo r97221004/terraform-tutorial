@@ -98,7 +98,7 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 ## Prerequisites
 
 - A Linux, macOS, or WSL2 shell with basic command-line familiarity.
-- A **Google Cloud account with billing enabled**. New accounts get free trial credit, which comfortably covers this guide.
+- A **Google Cloud account with billing enabled**. Free trial credit covers Parts 1–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Setup](docs/getting-started/setup.md#4-create-a-sandbox-project) explains both.
 - Terraform **1.11+** and the **gcloud CLI**. [Setup](docs/getting-started/setup.md) walks you through both.
 
 > 💸 **About cost.** Parts 1–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Setup has you create a **budget alert** before anything else, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
