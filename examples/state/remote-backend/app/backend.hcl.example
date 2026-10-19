@@ -1,0 +1,6 @@
+# Copy to backend.hcl (git-ignored) and set your bucket:
+#   cp backend.hcl.example backend.hcl
+#   terraform init -backend-config=backend.hcl
+
+bucket = "tf-tutorial-3fa9c1-tfstate" # the state_bucket output from ../bootstrap
+prefix = "tutorial/remote-backend/app"
