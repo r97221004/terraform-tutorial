@@ -1,0 +1,72 @@
+# Checks this repository's own examples and docs on every push and pull
+# request. No cloud credentials: everything here runs offline.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform-plugin-cache
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.16"
+          terraform_wrapper: false
+      - uses: terraform-linters/setup-tflint@v6
+
+      - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
+      - run: terraform fmt -check -recursive examples
+
+      # Every configuration and reusable module: each directory with a versions.tf.
+      - name: validate every example
+        run: |
+          set -euo pipefail
+          roots=$(find examples -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \; | sort)
+          for dir in $roots; do
+            echo "::group::$dir"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" validate
+            echo "::endgroup::"
+          done
+
+      - name: terraform test
+        run: |
+          set -euo pipefail
+          for dir in $(find examples -name '*.tftest.hcl' -not -path '*/.terraform/*' -exec dirname {} \; | xargs -n1 dirname | sort -u); do
+            echo "::group::$dir"
+            terraform -chdir="$dir" init -backend=false -input=false >/dev/null
+            terraform -chdir="$dir" test
+            echo "::endgroup::"
+          done
+
+      - run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}  # avoids GitHub API rate limits when downloading plugins
+      - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --chdir=examples
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 scripts/check-links.py README.md docs/*/*.md
+
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Lint this workflow and the example workflows readers copy.
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.12/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color .github/workflows/*.yml examples/team-workflow/ci-cd/workflows/*.yml

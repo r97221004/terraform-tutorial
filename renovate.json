@@ -1,0 +1,69 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "terraform": {
+    "managerFilePatterns": [
+      "/^examples/.+\\.tf$/"
+    ]
+  },
+  "github-actions": {
+    "managerFilePatterns": [
+      "/^\\.github/workflows/.+\\.ya?ml$/",
+      "/^examples/team-workflow/ci-cd/workflows/.+\\.ya?ml$/"
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "vLLM image tags in examples and docs",
+      "managerFilePatterns": [
+        "/^examples/.+\\.tf$/",
+        "/^docs/.+\\.md$/"
+      ],
+      "matchStrings": [
+        "vllm/vllm-openai:(?<currentValue>v\\d+\\.\\d+\\.\\d+)",
+        "variable \"vllm_version\" \\{[^}]*?default\\s*=\\s*\"(?<currentValue>v\\d+\\.\\d+\\.\\d+)\""
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "vllm/vllm-openai"
+    },
+    {
+      "customType": "regex",
+      "description": "tflint google ruleset version",
+      "managerFilePatterns": [
+        "/(^|/)\\.tflint\\.hcl$/"
+      ],
+      "matchStrings": [
+        "version\\s*=\\s*\"(?<currentValue>\\d+\\.\\d+\\.\\d+)\"\\s*\\n\\s*source\\s*=\\s*\"github\\.com/terraform-linters/tflint-ruleset-google\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "terraform-linters/tflint-ruleset-google",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Group provider updates so every example moves together",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchDepTypes": [
+        "provider",
+        "required_provider"
+      ],
+      "groupName": "terraform providers"
+    },
+    {
+      "description": "Docs mention these versions in prose too: review by hand",
+      "matchDepNames": [
+        "vllm/vllm-openai"
+      ],
+      "automerge": false
+    }
+  ]
+}

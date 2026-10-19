@@ -9,6 +9,7 @@
 ![Terraform](https://img.shields.io/badge/Terraform-1.11%2B-844FBA?logo=terraform&logoColor=white)
 ![Cloud](https://img.shields.io/badge/Cloud-Google%20Cloud-4285F4?logo=googlecloud&logoColor=white)
 ![Focus](https://img.shields.io/badge/Focus-DevOps%20%2B%20AI%20Infra-0F766E)
+[![CI](https://github.com/r97221004/terraform-tutorial/actions/workflows/ci.yml/badge.svg)](https://github.com/r97221004/terraform-tutorial/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 > **Problem**: Clicking through the Cloud Console or pasting `gcloud` commands works once. Then nobody remembers which flags built prod, staging has quietly drifted away from it, and rebuilding after a mistake takes a week of archaeology.
@@ -174,6 +175,16 @@ If any of these fail, finish [Setup](docs/getting-started/setup.md) first.
 - [**Troubleshooting**](docs/appendix/troubleshooting.md): symptom → cause → fix.
 - [**GCP Cost Guide**](docs/appendix/cost-guide.md): what costs money, and how to keep it near zero.
 - [**Further Reading**](docs/appendix/further-reading.md): advanced topics beyond this guide.
+
+## Checking the examples
+
+Every example is checked on each push by [`.github/workflows/ci.yml`](.github/workflows/ci.yml), with no cloud credentials: `terraform fmt`, `init -backend=false` and `validate` for every configuration and module, `terraform test` for the modules with tests, tflint with the google ruleset, actionlint for the workflows, and a link check for the docs. [Renovate](renovate.json) keeps provider, module, chart, action, and vLLM versions current. To run the same checks locally:
+
+```bash
+terraform fmt -check -recursive examples
+tflint --init && tflint --recursive --config "$PWD/.tflint.hcl" --chdir=examples
+python3 scripts/check-links.py README.md docs/*/*.md
+```
 
 ## License
 
