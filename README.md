@@ -6,7 +6,7 @@
 
 > _Learn Terraform on Google Cloud by building real infrastructure, one resource at a time, ending with a GPU-backed LLM platform on GKE._
 
-![Terraform](https://img.shields.io/badge/Terraform-1.10%2B-844FBA?logo=terraform&logoColor=white)
+![Terraform](https://img.shields.io/badge/Terraform-1.11%2B-844FBA?logo=terraform&logoColor=white)
 ![Cloud](https://img.shields.io/badge/Cloud-Google%20Cloud-4285F4?logo=googlecloud&logoColor=white)
 ![Focus](https://img.shields.io/badge/Focus-DevOps%20%2B%20AI%20Infra-0F766E)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -99,14 +99,14 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 
 - A Linux, macOS, or WSL2 shell with basic command-line familiarity.
 - A **Google Cloud account with billing enabled**. New accounts get free trial credit, which comfortably covers this guide.
-- Terraform **1.10+** and the **gcloud CLI**. [Setup](docs/getting-started/setup.md) walks you through both.
+- Terraform **1.11+** and the **gcloud CLI**. [Setup](docs/getting-started/setup.md) walks you through both.
 
 > 💸 **About cost.** Parts 1–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Setup has you create a **budget alert** before anything else, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
 
 Before starting Part 1, check that your tools work:
 
 ```bash
-terraform version                          # Terraform v1.10 or newer
+terraform version                          # Terraform v1.11 or newer
 gcloud config get-value project            # your sandbox project ID
 gcloud auth application-default print-access-token > /dev/null && echo "ADC OK"
 ```

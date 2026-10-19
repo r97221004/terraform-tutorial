@@ -33,11 +33,11 @@ On macOS: `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`. Othe
 Check it, and turn on tab completion for subcommands:
 
 ```bash
-terraform version                 # Terraform v1.10.0 or newer
+terraform version                 # Terraform v1.11.0 or newer
 terraform -install-autocomplete   # then open a new shell
 ```
 
-> 📌 **This guide targets Terraform 1.10+** (see the badge on the [README](../../README.md)). Each example also declares `required_version = ">= 1.10"`, so an older binary fails immediately with a clear error instead of misbehaving halfway through.
+> 📌 **This guide targets Terraform 1.11+** (see the badge on the [README](../../README.md)). Each example declares its minimum with `required_version`: `">= 1.10"` for most, `">= 1.11"` for the [Secret Manager](../gcp-foundations/secrets.md) example, which uses write-only arguments. An older binary fails immediately with a clear error instead of misbehaving halfway through.
 
 ## 2. Install the gcloud CLI
 
@@ -192,7 +192,7 @@ New shells won't have these variables. Add the three `export` lines (`PROJECT_ID
 ## Verify
 
 ```bash
-terraform version                                   # v1.10+
+terraform version                                   # v1.11+
 gcloud config get-value project                     # your tf-tutorial-xxxxxx project
 gcloud auth application-default print-access-token > /dev/null && echo "ADC OK"
 gcloud billing projects describe "$PROJECT_ID" --format='value(billingEnabled)'   # True
