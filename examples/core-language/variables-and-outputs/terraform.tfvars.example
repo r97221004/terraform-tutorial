@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (git-ignored) and edit:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# project_id and region come from TF_VAR_project_id / TF_VAR_region (see Setup).
+
+environment = "dev"
+team        = "ml-platform"
+
+model_bucket = {
+  storage_class        = "STANDARD"
+  old_versions_to_keep = 5
+  # name_suffix and versioning are left out: their optional() defaults apply.
+}
+
+extra_labels = {
+  cost-center = "research"
+}
