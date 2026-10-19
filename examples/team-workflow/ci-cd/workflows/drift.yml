@@ -1,0 +1,67 @@
+# Copy to .github/workflows/drift.yml. Runs a plan every night and opens an
+# issue when real infrastructure no longer matches the code.
+name: drift
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 06:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  issues: write
+
+env:
+  TF_DIR: infra
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_DIR }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.PLAN_SA }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.16"
+          terraform_wrapper: false
+
+      - run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="prefix=${{ env.TF_DIR }}"
+
+      # Exit code 0 = no changes, 1 = error, 2 = changes (drift).
+      - id: plan
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -lock-timeout=5m -no-color > plan.txt
+          code=$?
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 1 ]; then cat plan.txt; exit 1; fi
+
+      - name: Open an issue on drift
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync(`${process.env.TF_DIR}/plan.txt`, 'utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Drift detected in ${process.env.TF_DIR}`,
+              body: '```\n' + plan.slice(-60000) + '\n```',
+              labels: ['drift'],
+            });

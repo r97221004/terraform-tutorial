@@ -1,0 +1,140 @@
+# Copy to .github/workflows/terraform.yml in the repository that holds your
+# Terraform code. Set these repository variables (Settings → Variables):
+#   GCP_PROJECT_ID, WIF_PROVIDER, PLAN_SA, APPLY_SA, TF_STATE_BUCKET
+# and create a "production" environment with required reviewers.
+name: terraform
+
+on:
+  pull_request:
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+  push:
+    branches: [main]
+    paths: ["infra/**", ".github/workflows/terraform.yml"]
+
+permissions:
+  contents: read
+
+env:
+  TF_DIR: infra
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+  TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+
+jobs:
+  # Fast checks that need no credentials.
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.TF_DIR }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.16"
+      - uses: terraform-linters/setup-tflint@v6
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false
+      - run: terraform validate
+      - run: tflint --init && tflint
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: ${{ env.TF_DIR }}
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+
+  plan:
+    needs: checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write       # lets the job request a GitHub OIDC token
+      pull-requests: write  # lets the job comment the plan on the PR
+    defaults:
+      run:
+        working-directory: ${{ env.TF_DIR }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Exchange GitHub's OIDC token for short-lived Google credentials. No keys.
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.PLAN_SA }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.16"
+          terraform_wrapper: false
+
+      - run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="prefix=${{ env.TF_DIR }}"
+
+      - run: terraform plan -lock-timeout=5m -out=tfplan
+      - run: terraform show -no-color tfplan > plan.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tfplan
+          path: |
+            ${{ env.TF_DIR }}/tfplan
+            ${{ env.TF_DIR }}/plan.txt
+
+      - name: Comment the plan on the pull request
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync(`${process.env.TF_DIR}/plan.txt`, 'utf8');
+            const body = '### Terraform plan\n\n```\n' + plan.slice(-60000) + '\n```';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  apply:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: production   # waits for a required reviewer
+    concurrency:
+      group: terraform-apply  # never two applies at once
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: ${{ env.TF_DIR }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.APPLY_SA }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.16"
+          terraform_wrapper: false
+
+      - run: >-
+          terraform init
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="prefix=${{ env.TF_DIR }}"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: tfplan
+          path: ${{ env.TF_DIR }}
+
+      # Apply exactly the plan that was reviewed. If state changed since,
+      # Terraform refuses and the workflow must be re-run.
+      - run: terraform apply -lock-timeout=5m tfplan
