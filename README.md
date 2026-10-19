@@ -1,5 +1,9 @@
 # Terraform in Practice
 
+<p align="center">
+  <img src="docs/images/terraform-logo.svg" width="120" alt="Terraform logo" />
+</p>
+
 > _Learn Terraform on Google Cloud by building real infrastructure, one resource at a time, ending with a GPU-backed LLM platform on GKE._
 
 ![Terraform](https://img.shields.io/badge/Terraform-1.10%2B-844FBA?logo=terraform&logoColor=white)
