@@ -80,17 +80,43 @@ GKE comes in two modes:
 
 ## The cluster
 
-From [`cluster.tf`](../../examples/ai-infra/gke-cluster/cluster.tf), piece by piece.
+The cluster, its system node pool, and the node service account live in a **shared module**, [`examples/ai-infra/modules/gke-cluster`](../../examples/ai-infra/modules/gke-cluster/), so that the [capstone](../capstone/llm-platform.md) builds exactly the same cluster from exactly the same code. This chapter's root, in [`cluster.tf`](../../examples/ai-infra/gke-cluster/cluster.tf), just wires it to the network:
+
+```hcl
+module "gke" {
+  source = "../modules/gke-cluster"
+
+  project_id   = var.project_id
+  zone         = var.zone
+  cluster_name = var.cluster_name
+
+  network_id          = module.network.network_id
+  subnet_id           = module.network.subnet_id
+  pods_range_name     = module.network.pods_range_name
+  services_range_name = module.network.services_range_name
+
+  authorized_cidrs = var.authorized_cidrs
+
+  # So that `terraform destroy` works in this tutorial. Leave it true for real clusters.
+  deletion_protection = false
+
+  # Everything in the module waits for the APIs.
+  depends_on = [google_project_service.enabled]
+}
+```
+
+`depends_on` on a **module** applies to everything inside it, here so that nothing is created before the Compute, Container, and IAM APIs are enabled. The rest of this section walks through the module's [`main.tf`](../../examples/ai-infra/modules/gke-cluster/main.tf), piece by piece.
 
 ### Zonal, with separately managed node pools
 
 ```hcl
 resource "google_container_cluster" "ml" {
+  project  = var.project_id
   name     = var.cluster_name
   location = var.zone # a zone: a zonal cluster. A region would make it regional.
 
-  network    = module.network.network_id
-  subnetwork = module.network.subnet_id
+  network    = var.network_id
+  subnetwork = var.subnet_id
 
   # Manage node pools as separate resources, so they can change independently.
   remove_default_node_pool = true
@@ -101,7 +127,7 @@ resource "google_container_cluster" "ml" {
 
 - **`location`** decides zonal or regional. A **zonal** cluster has one control plane in one zone; a **regional** one has three, survives a zone outage, and is what production should use. Zonal is cheaper for learning, because GKE's free tier credit applies to one zonal (or Autopilot) cluster per billing account. Node pools of a zonal cluster can still spread across other zones in the region, which matters for finding GPUs.
 - **`remove_default_node_pool = true`** with **`initial_node_count = 1`** is the standard idiom. GKE insists on creating a default pool with the cluster; this deletes it right away, so every node pool is its own `google_container_node_pool` resource. Changing a pool defined inside the cluster resource can force replacing the **whole cluster**; a separate resource only ever replaces the pool.
-- **`network`** and **`subnetwork`** come from the module's outputs. Referring to them also makes the cluster wait for the network.
+- **`network`** and **`subnetwork`** come from the `vpc` module's outputs, passed in by the root. Referring to them also makes the cluster wait for the network.
 
 ### Release channel
 
@@ -117,8 +143,8 @@ GKE upgrades the control plane and nodes automatically; the **release channel** 
 
 ```hcl
   ip_allocation_policy {
-    cluster_secondary_range_name  = module.network.pods_range_name
-    services_secondary_range_name = module.network.services_range_name
+    cluster_secondary_range_name  = var.pods_range_name
+    services_secondary_range_name = var.services_range_name
   }
 
   private_cluster_config {
@@ -182,15 +208,18 @@ The control plane is reachable two ways:
 ### `deletion_protection`
 
 ```hcl
-  deletion_protection = false
+  # The google provider protects clusters by default. The chapter examples
+  # pass false so that `terraform destroy` works; keep true for real clusters.
+  deletion_protection = var.deletion_protection
 ```
 
-The google provider protects clusters by default: with `deletion_protection` unset or `true`, `terraform destroy` fails instead of deleting the cluster. It's set to `false` here so that the tutorial's cleanup works. **Leave it at the default for real clusters**, and set it to `false` in a separate, reviewed change only when you really mean to delete one.
+The google provider protects clusters by default: with `deletion_protection` unset or `true`, `terraform destroy` fails instead of deleting the cluster. The module's variable defaults to `true`, the safe choice; this chapter's root passes `false` so that the tutorial's cleanup works. **Leave it at the default for real clusters**, and set it to `false` in a separate, reviewed change only when you really mean to delete one.
 
 ## The system node pool
 
 ```hcl
 resource "google_container_node_pool" "system" {
+  project  = var.project_id
   name     = "system"
   cluster  = google_container_cluster.ml.id
   location = var.zone
@@ -201,7 +230,7 @@ resource "google_container_node_pool" "system" {
   }
 
   node_config {
-    machine_type    = "e2-standard-4"
+    machine_type    = var.system_machine_type # e2-standard-4 by default
     disk_size_gb    = 50
     service_account = google_service_account.nodes.email
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -219,7 +248,7 @@ resource "google_container_node_pool" "system" {
 ```
 
 - **A small, always-on CPU pool** runs cluster services: DNS, metrics, and the GCS FUSE driver's sidecars. GPU nodes, added next chapter, will only run GPU workloads and scale to zero when idle.
-- **`service_account`** is a dedicated SA, from [`nodes-sa.tf`](../../examples/ai-infra/gke-cluster/nodes-sa.tf), never the Compute Engine default ([IAM](../gcp-foundations/iam.md#service-accounts-one-per-workload)). It gets one role, **`roles/container.defaultNodeServiceAccount`**, which covers what every node needs, such as writing logs and metrics. Reading images from your own Artifact Registry repository is granted on the repository itself in [Model Storage](model-storage.md).
+- **`service_account`** is a dedicated SA, from the module's [`nodes-sa.tf`](../../examples/ai-infra/modules/gke-cluster/nodes-sa.tf), never the Compute Engine default ([IAM](../gcp-foundations/iam.md#service-accounts-one-per-workload)). It gets one role, **`roles/container.defaultNodeServiceAccount`**, which covers what every node needs, such as writing logs and metrics. Reading images from your own Artifact Registry repository is granted on the repository itself in [Model Storage](model-storage.md).
 - **`oauth_scopes = cloud-platform`** looks broad, but scopes are a legacy second filter. With a least-privilege SA, IAM is what actually limits access, and the broad scope avoids confusing "access denied" errors.
 - **`workload_metadata_config { mode = "GKE_METADATA" }`** makes Pods on these nodes use Workload Identity instead of the node's SA.
 - **`autoscaling`** lets the pool grow to 3 nodes if system Pods need room, and shrink back to 1.
@@ -234,7 +263,7 @@ terraform output
 ```
 cluster_location = "us-central1-a"
 cluster_name = "ml-gke"
-get_credentials = "gcloud container clusters get-credentials ml-gke --location us-central1-a --dns-endpoint"
+get_credentials = "gcloud container clusters get-credentials ml-gke --location us-central1-a --project tf-tutorial-3fa9c1 --dns-endpoint"
 node_service_account = "gke-nodes@tf-tutorial-3fa9c1.iam.gserviceaccount.com"
 ```
 

@@ -58,13 +58,37 @@ flowchart LR
 
 Everything the GPU node reads is **in its own region**: no cross-region egress charges, low latency, and no dependency on Hugging Face or Docker Hub being reachable when a node starts.
 
-## The model bucket
+## The configuration
 
-From [`main.tf`](../../examples/ai-infra/model-storage/main.tf):
+The bucket and repositories are a shared module, [`examples/ai-infra/modules/model-storage`](../../examples/ai-infra/modules/model-storage/), also used by the [capstone](../capstone/llm-platform.md). This chapter's root, [`main.tf`](../../examples/ai-infra/model-storage/main.tf), enables the APIs, builds the Workload Identity principal of the vLLM Pod, and calls the module:
+
+```hcl
+data "google_project" "this" {}
+
+locals {
+  vllm_principal = "principal://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${var.namespace}/sa/${var.ksa_name}"
+}
+
+# The models bucket and both image repositories, from the shared module.
+module "storage" {
+  source = "../modules/model-storage"
+
+  project_id                  = var.project_id
+  region                      = var.region
+  reader_principal            = local.vllm_principal
+  node_service_account_member = "serviceAccount:gke-nodes@${var.project_id}.iam.gserviceaccount.com" # GKE Cluster chapter
+
+  depends_on = [google_project_service.enabled]
+}
+```
+
+The rest of this chapter walks through the module's [`main.tf`](../../examples/ai-infra/modules/model-storage/main.tf).
+
+## The model bucket
 
 ```hcl
 resource "google_storage_bucket" "models" {
-  project  = google_project_service.enabled["storage.googleapis.com"].project
+  project  = var.project_id
   name     = "${var.project_id}-models"
   location = var.region # same region as the GPUs
 
@@ -101,7 +125,7 @@ Read access goes to the vLLM Pod's Kubernetes service account, exactly as in [Wo
 resource "google_storage_bucket_iam_member" "vllm_reads_models" {
   bucket = google_storage_bucket.models.name
   role   = "roles/storage.objectViewer"
-  member = local.vllm_principal
+  member = var.reader_principal # the vllm KSA's principal, from the root
 }
 ```
 
@@ -112,7 +136,7 @@ resource "google_storage_bucket_iam_member" "vllm_reads_models" {
 # image in your region. Nodes reach it through Private Google Access, so
 # pulls don't go through Cloud NAT and don't hit Docker Hub's rate limits.
 resource "google_artifact_registry_repository" "dockerhub" {
-  project       = google_project_service.enabled["artifactregistry.googleapis.com"].project
+  project       = var.project_id
   location      = var.region
   repository_id = "dockerhub"
   description   = "Pull-through cache of Docker Hub."
@@ -149,10 +173,11 @@ resource "google_artifact_registry_repository_iam_member" "nodes_pull" {
     dockerhub = google_artifact_registry_repository.dockerhub.name
   }
 
+  project    = var.project_id
   location   = var.region
   repository = each.value
   role       = "roles/artifactregistry.reader"
-  member     = local.node_service_account
+  member     = var.node_service_account_member
 }
 ```
 

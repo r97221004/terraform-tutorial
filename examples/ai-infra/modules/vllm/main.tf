@@ -1,7 +1,7 @@
 locals {
-  namespace = "ml-serving"
+  namespace = var.namespace
   labels    = { app = "vllm" }
-  image     = "${var.region}-docker.pkg.dev/${var.project_id}/dockerhub/vllm/vllm-openai:${var.vllm_version}"
+  image     = "${var.image_repository}/vllm/vllm-openai:${var.vllm_version}"
 }
 
 resource "kubernetes_namespace_v1" "serving" {
@@ -13,7 +13,7 @@ resource "kubernetes_namespace_v1" "serving" {
 # The KSA that Workload Identity grants objectViewer on the models bucket.
 resource "kubernetes_service_account_v1" "vllm" {
   metadata {
-    name      = "vllm"
+    name      = var.ksa_name
     namespace = kubernetes_namespace_v1.serving.metadata[0].name
   }
 }
@@ -93,7 +93,7 @@ resource "kubernetes_deployment_v1" "vllm" {
             driver    = "gcsfuse.csi.storage.gke.io"
             read_only = true
             volume_attributes = {
-              bucketName = "${var.project_id}-models"
+              bucketName = var.models_bucket
             }
           }
         }

@@ -61,7 +61,7 @@ terraform destroy
 ```
 
 ```
-Plan: 0 to add, 0 to change, 20 to destroy.
+Plan: 0 to add, 0 to change, 22 to destroy.
 ```
 
 About 10 minutes, most of it deleting the cluster. Two settings make this work in one go, and both are worth reconsidering for real systems:

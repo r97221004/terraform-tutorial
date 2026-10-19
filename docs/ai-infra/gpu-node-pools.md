@@ -106,10 +106,29 @@ Keeping the GPU pool in its own configuration also has a practical benefit: you 
 
 ## The GPU node pool
 
+The pool itself is a shared module, [`examples/ai-infra/modules/gpu-node-pool`](../../examples/ai-infra/modules/gpu-node-pool/), which the [capstone](../capstone/llm-platform.md) uses too. The root passes it the cluster it found:
+
+```hcl
+module "gpu_pool" {
+  source = "../modules/gpu-node-pool"
+
+  project_id           = var.project_id
+  cluster_id           = data.google_container_cluster.ml.id
+  zone                 = var.zone
+  node_service_account = local.node_service_account
+
+  gpu_zones     = var.gpu_zones
+  max_gpu_nodes = var.max_gpu_nodes
+}
+```
+
+Inside the module, [`main.tf`](../../examples/ai-infra/modules/gpu-node-pool/main.tf):
+
 ```hcl
 resource "google_container_node_pool" "l4_spot" {
-  name     = "l4-spot"
-  cluster  = data.google_container_cluster.ml.id
+  project  = var.project_id
+  name     = var.name
+  cluster  = var.cluster_id
   location = var.zone
 
   # Nodes may be created in any of these zones (all in the cluster's region).
@@ -125,11 +144,11 @@ resource "google_container_node_pool" "l4_spot" {
   }
 
   node_config {
-    machine_type = "g2-standard-4" # 4 vCPU, 16 GB RAM, 1 x NVIDIA L4 (24 GB)
-    spot         = true            # 60-90% cheaper; can be reclaimed at any time
+    machine_type = var.machine_type # g2-standard-4: 4 vCPU, 16 GB RAM, 1 x NVIDIA L4 (24 GB)
+    spot         = var.spot         # 60-90% cheaper; can be reclaimed at any time
 
     guest_accelerator {
-      type  = "nvidia-l4"
+      type  = var.gpu_type
       count = 1
 
       # GKE installs the NVIDIA driver itself.
@@ -145,8 +164,10 @@ resource "google_container_node_pool" "l4_spot" {
 }
 ```
 
+The module's defaults (`l4-spot`, `g2-standard-4`, `nvidia-l4`, `spot = true`) are this guide's choices; another GPU is a different set of inputs, not a different module. The plan:
+
 ```
-  # google_container_node_pool.l4_spot will be created
+  # module.gpu_pool.google_container_node_pool.l4_spot will be created
   + resource "google_container_node_pool" "l4_spot" {
       + cluster                     = "projects/tf-tutorial-3fa9c1/locations/us-central1-a/clusters/ml-gke"
       + initial_node_count          = 0

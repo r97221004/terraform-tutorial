@@ -63,11 +63,11 @@ flowchart LR
 ```
 
 ```
-  # helm_release.open_webui will be created
-  # kubernetes_deployment_v1.vllm will be created
-  # kubernetes_namespace_v1.serving will be created
-  # kubernetes_service_account_v1.vllm will be created
-  # kubernetes_service_v1.vllm will be created
+  # module.vllm.helm_release.open_webui[0] will be created
+  # module.vllm.kubernetes_deployment_v1.vllm will be created
+  # module.vllm.kubernetes_namespace_v1.serving will be created
+  # module.vllm.kubernetes_service_account_v1.vllm will be created
+  # module.vllm.kubernetes_service_v1.vllm will be created
 Plan: 5 to add, 0 to change, 0 to destroy.
 ```
 
@@ -147,9 +147,26 @@ The fixes, best first:
 
 Separate configurations also match the component split from [Environments](../modules/environments.md#splitting-by-component-too): the cluster changes monthly, workloads daily, and they're applied separately anyway.
 
+## The `vllm` module
+
+The workloads are a shared module, [`examples/ai-infra/modules/vllm`](../../examples/ai-infra/modules/vllm/), also used by the [capstone](../capstone/llm-platform.md). This chapter's root, [`main.tf`](../../examples/ai-infra/kubernetes-and-helm/main.tf), only says where the image and the weights are:
+
+```hcl
+module "vllm" {
+  source = "../modules/vllm"
+
+  image_repository = "${var.region}-docker.pkg.dev/${var.project_id}/dockerhub"
+  models_bucket    = "${var.project_id}-models"
+  model            = var.model
+  vllm_version     = var.vllm_version
+}
+```
+
+Like every reusable module ([Writing Modules](../modules/writing-modules.md#the-modules-files)), it has no `provider` blocks: it uses the `kubernetes` and `helm` providers configured in the root's `providers.tf` above. Its variables default to the names used throughout Part 5: namespace `ml-serving`, KSA `vllm`, and the Open WebUI chart enabled.
+
 ## vLLM with the kubernetes provider
 
-Kubernetes objects map one-to-one onto resources: a manifest's fields become nested blocks. From [`vllm.tf`](../../examples/ai-infra/kubernetes-and-helm/vllm.tf), the namespace and the KSA that [Workload Identity](workload-identity.md) granted access to:
+Kubernetes objects map one-to-one onto resources: a manifest's fields become nested blocks. From the module's [`main.tf`](../../examples/ai-infra/modules/vllm/main.tf), the namespace and the KSA that [Workload Identity](workload-identity.md) granted access to:
 
 ```hcl
 resource "kubernetes_namespace_v1" "serving" {
@@ -161,7 +178,7 @@ resource "kubernetes_namespace_v1" "serving" {
 # The KSA that Workload Identity grants objectViewer on the models bucket.
 resource "kubernetes_service_account_v1" "vllm" {
   metadata {
-    name      = "vllm"
+    name      = var.ksa_name # "vllm"
     namespace = kubernetes_namespace_v1.serving.metadata[0].name
   }
 }
@@ -223,7 +240,7 @@ resource "kubernetes_deployment_v1" "vllm" {
             driver    = "gcsfuse.csi.storage.gke.io"
             read_only = true
             volume_attributes = {
-              bucketName = "${var.project_id}-models"
+              bucketName = var.models_bucket
             }
           }
         }
@@ -257,11 +274,13 @@ Use the `_v1` resource types (`kubernetes_deployment_v1`, not `kubernetes_deploy
 
 ## Open WebUI with the helm provider
 
-For software someone else packages, a **Helm chart** is usually the right unit. The `helm_release` resource installs one, from [`webui.tf`](../../examples/ai-infra/kubernetes-and-helm/webui.tf):
+For software someone else packages, a **Helm chart** is usually the right unit. The `helm_release` resource installs one, from the module's [`webui.tf`](../../examples/ai-infra/modules/vllm/webui.tf):
 
 ```hcl
 # A chat UI in front of vLLM, from a public Helm chart.
 resource "helm_release" "open_webui" {
+  count = var.enable_ui ? 1 : 0
+
   name       = "open-webui"
   namespace  = kubernetes_namespace_v1.serving.metadata[0].name
   repository = "https://helm.openwebui.com"

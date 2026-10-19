@@ -1,10 +1,9 @@
-# The LLM platform's infrastructure: everything from Parts 3-5 in one place.
+# The LLM platform's infrastructure: the same modules as Parts 4-5, in one place.
 # The Kubernetes workloads live in ../app, a separate configuration.
 
 locals {
-  cluster_name = "ml-gke"
-  namespace    = "ml-serving"
-  ksa_name     = "vllm"
+  namespace = "ml-serving"
+  ksa_name  = "vllm"
 }
 
 resource "google_project_service" "enabled" {
@@ -38,4 +37,47 @@ module "network" {
     pods     = "10.16.0.0/14"
     services = "10.10.16.0/20"
   }
+}
+
+# --- Cluster and node pools (GKE Cluster, GPU Node Pools) -------------------
+
+module "gke" {
+  source = "../../../ai-infra/modules/gke-cluster"
+
+  project_id = var.project_id
+  zone       = var.zone
+
+  network_id          = module.network.network_id
+  subnet_id           = module.network.subnet_id
+  pods_range_name     = module.network.pods_range_name
+  services_range_name = module.network.services_range_name
+
+  deletion_protection = false # so the capstone can be torn down; keep true for real clusters
+
+  depends_on = [google_project_service.enabled]
+}
+
+module "gpu_pool" {
+  source = "../../../ai-infra/modules/gpu-node-pool"
+
+  project_id           = var.project_id
+  cluster_id           = module.gke.cluster_id # same configuration: refer to the cluster directly
+  zone                 = var.zone
+  node_service_account = module.gke.node_service_account
+
+  gpu_zones     = var.gpu_zones
+  max_gpu_nodes = var.max_gpu_nodes
+}
+
+# --- Model weights and images (Model Storage, Workload Identity) ------------
+
+module "storage" {
+  source = "../../../ai-infra/modules/model-storage"
+
+  project_id                  = var.project_id
+  region                      = var.region
+  reader_principal            = "principal://iam.googleapis.com/projects/${data.google_project.this.number}/locations/global/workloadIdentityPools/${var.project_id}.svc.id.goog/subject/ns/${local.namespace}/sa/${local.ksa_name}"
+  node_service_account_member = module.gke.node_service_account_member
+
+  depends_on = [google_project_service.enabled]
 }

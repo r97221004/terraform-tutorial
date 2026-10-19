@@ -34,7 +34,7 @@ config:
     .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
 ---
 flowchart LR
-    subgraph infra["📁 infra/ · 20 resources"]
+    subgraph infra["📁 infra/ · 22 resources"]
         direction TB
         net["🌐 ml-vpc + NAT"]
         gke["☸️ ml-gke<br/>system pool + L4 Spot pool"]
@@ -66,22 +66,26 @@ flowchart LR
 
 | Directory | Contains | State prefix |
 |---|---|---|
-| [`infra/`](../../examples/capstone/llm-platform/infra/) | APIs, network module, node service account, cluster, both node pools, models bucket, Docker Hub cache, IAM | `capstone/infra` |
-| [`app/`](../../examples/capstone/llm-platform/app/) | namespace, KSA, vLLM Deployment and Service, Open WebUI | `capstone/app` |
+| [`infra/`](../../examples/capstone/llm-platform/infra/) | APIs, and the `vpc`, `gke-cluster`, `gpu-node-pool`, and `model-storage` modules | `capstone/infra` |
+| [`app/`](../../examples/capstone/llm-platform/app/) | the `vllm` module: namespace, KSA, vLLM Deployment and Service, Open WebUI | `capstone/app` |
 
 The split is the answer to the [two-stage apply problem](../ai-infra/kubernetes-and-helm.md#the-two-stage-apply-problem): the cluster has to exist before the Kubernetes providers in `app/` can be configured. It's also the component split from [Environments](../modules/environments.md#splitting-by-component-too): infrastructure changes rarely, workloads often.
 
-## What's in `infra/`
+## What's in `infra/` and `app/`
 
-| File | Builds | Explained in |
+The capstone writes almost no resources of its own. [`infra/main.tf`](../../examples/capstone/llm-platform/infra/main.tf) and [`app/main.tf`](../../examples/capstone/llm-platform/app/main.tf) call the **same modules** the Part 4 and Part 5 chapters use, so a fix in a module reaches the chapter example and the capstone at once:
+
+| Module | Builds | Explained in |
 |---|---|---|
-| `main.tf` | API enablement; the `vpc` module (network, subnet with `pods`/`services` ranges, Cloud NAT, firewall) | [Projects & APIs](../gcp-foundations/projects-and-apis.md), [Networking](../gcp-foundations/networking.md), [Writing Modules](../modules/writing-modules.md) |
-| `gke.tf` | node SA; zonal cluster with private nodes, DNS endpoint, Workload Identity, GCS FUSE; system pool; L4 Spot pool scaling 0–1 across three zones | [GKE Cluster](../ai-infra/gke-cluster.md), [GPU Node Pools](../ai-infra/gpu-node-pools.md) |
-| `storage.tf` | models bucket readable only by the `ml-serving/vllm` KSA; Docker Hub remote repository readable by the nodes | [Model Storage](../ai-infra/model-storage.md), [Workload Identity](../ai-infra/workload-identity.md) |
+| [`modules/writing-modules/modules/vpc`](../../examples/modules/writing-modules/modules/vpc/) | network, subnet with `pods`/`services` ranges, Cloud NAT, firewall | [Networking](../gcp-foundations/networking.md), [Writing Modules](../modules/writing-modules.md) |
+| [`ai-infra/modules/gke-cluster`](../../examples/ai-infra/modules/gke-cluster/) | node SA; zonal cluster with private nodes, DNS endpoint, Workload Identity, GCS FUSE; system pool | [GKE Cluster](../ai-infra/gke-cluster.md) |
+| [`ai-infra/modules/gpu-node-pool`](../../examples/ai-infra/modules/gpu-node-pool/) | L4 Spot pool scaling 0–1 across three zones | [GPU Node Pools](../ai-infra/gpu-node-pools.md) |
+| [`ai-infra/modules/model-storage`](../../examples/ai-infra/modules/model-storage/) | models bucket readable only by the `ml-serving/vllm` KSA; `serving` and `dockerhub` repositories readable by the nodes | [Model Storage](../ai-infra/model-storage.md), [Workload Identity](../ai-infra/workload-identity.md) |
+| [`ai-infra/modules/vllm`](../../examples/ai-infra/modules/vllm/) (in `app/`) | namespace, KSA, vLLM Deployment and Service, optional Open WebUI | [Kubernetes & Helm](../ai-infra/kubernetes-and-helm.md) |
 
-Two small changes from the Part 5 chapters, both because everything now lives in one configuration:
+Two things differ from the Part 5 chapters, both because the infrastructure now lives in one configuration:
 
-- The GPU pool refers to the cluster resource directly, instead of looking it up with a data source.
+- The GPU pool module gets the cluster from the `gke` module's output, `module.gke.cluster_id`, instead of a data source lookup. Within one configuration, a reference is better: it also orders the pool after the cluster.
 - The project number for the Workload Identity principal is read with `data "google_project"`, **without** `depends_on`, so it's read at plan time and the plan shows the real principal:
 
   ```
@@ -105,12 +109,12 @@ terraform plan
 ```
 - network in ../../../modules/writing-modules/modules/vpc
 ...
-Plan: 20 to add, 0 to change, 0 to destroy.
+Plan: 22 to add, 0 to change, 0 to destroy.
 
 Changes to Outputs:
   + cluster_location = "us-central1-a"
   + cluster_name     = "ml-gke"
-  + get_credentials  = "gcloud container clusters get-credentials ml-gke --location us-central1-a --dns-endpoint"
+  + get_credentials  = "gcloud container clusters get-credentials ml-gke --location us-central1-a --project tf-tutorial-3fa9c1 --dns-endpoint"
   + models_bucket    = "tf-tutorial-3fa9c1-models"
 ```
 
@@ -142,15 +146,15 @@ terraform plan
 ```
 
 ```
-  # helm_release.open_webui[0] will be created
-  # kubernetes_deployment_v1.vllm will be created
-  # kubernetes_namespace_v1.serving will be created
-  # kubernetes_service_account_v1.vllm will be created
-  # kubernetes_service_v1.vllm will be created
+  # module.vllm.helm_release.open_webui[0] will be created
+  # module.vllm.kubernetes_deployment_v1.vllm will be created
+  # module.vllm.kubernetes_namespace_v1.serving will be created
+  # module.vllm.kubernetes_service_account_v1.vllm will be created
+  # module.vllm.kubernetes_service_v1.vllm will be created
 Plan: 5 to add, 0 to change, 0 to destroy.
 ```
 
-`app/` is the configuration from [Kubernetes & Helm](../ai-infra/kubernetes-and-helm.md), with one addition: `enable_ui` (default `true`) makes Open WebUI optional, with `count`.
+`app/` is the configuration from [Kubernetes & Helm](../ai-infra/kubernetes-and-helm.md), with one variable exposed: `enable_ui` (default `true`) is passed to the module, which installs Open WebUI with `count`.
 
 ```bash
 terraform apply

@@ -1,11 +1,11 @@
 # Nodes run as their own service account, never the Compute Engine default SA.
 resource "google_service_account" "nodes" {
-  project      = google_project_service.enabled["iam.googleapis.com"].project
+  project      = var.project_id
   account_id   = "gke-nodes"
   display_name = "GKE nodes"
 }
 
-# The minimum a node needs: write logs and metrics, read images.
+# The minimum a node needs: write logs and metrics.
 resource "google_project_iam_member" "nodes" {
   project = var.project_id
   role    = "roles/container.defaultNodeServiceAccount"
