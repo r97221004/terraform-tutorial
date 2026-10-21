@@ -33,7 +33,7 @@ config:
     fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
     clusterBkg: '#FAFAFA'
     clusterBorder: '#94A3B8'
-    lineColor: '#FFFFFF'
+    lineColor: '#64748B'
     edgeLabelBackground: '#475569'
   themeCSS: |
     .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
