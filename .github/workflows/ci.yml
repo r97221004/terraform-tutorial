@@ -16,7 +16,7 @@ env:
 
 jobs:
   terraform:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
@@ -43,7 +43,8 @@ jobs:
       - name: terraform test
         run: |
           set -euo pipefail
-          for dir in $(find examples -name '*.tftest.hcl' -not -path '*/.terraform/*' -exec dirname {} \; | xargs -n1 dirname | sort -u); do
+          # Each *.tftest.hcl lives in <module>/tests/; run the test from <module>.
+          for dir in $(find examples -path '*/tests/*.tftest.hcl' -not -path '*/.terraform/*' -exec dirname {} + | sed 's|/tests$||' | sort -u); do
             echo "::group::$dir"
             terraform -chdir="$dir" init -backend=false -input=false >/dev/null
             terraform -chdir="$dir" test
@@ -56,13 +57,13 @@ jobs:
       - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --chdir=examples
 
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - run: python3 scripts/check-links.py README.md docs/*/*.md
 
   workflows:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       # Lint this workflow and the example workflows readers copy.
