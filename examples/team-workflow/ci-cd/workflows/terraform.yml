@@ -110,12 +110,12 @@ jobs:
           {
             echo '### Deployment plan'
             echo
-            printf 'Generated from commit `%s` after merge to `main`.\n' "$GITHUB_SHA"
+            printf "Generated from commit \`%s\` after merge to \`main\`.\n" "$GITHUB_SHA"
             echo 'Review this plan before approving the production environment.'
             echo
-            echo '```'
+            echo "\`\`\`"
             tail -c 60000 plan.txt
-            echo '```'
+            echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
