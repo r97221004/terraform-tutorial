@@ -28,11 +28,16 @@ jobs:
       - run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
       - run: terraform fmt -check -recursive examples
 
-      # Every configuration and reusable module: each directory with a versions.tf.
+      # Every complete configuration and reusable module: each directory with
+      # Terraform files. refactoring/refactored is a fragment copied over its
+      # parent's main.tf, not a standalone configuration.
       - name: validate every example
         run: |
           set -euo pipefail
-          roots=$(find examples -name versions.tf -not -path '*/.terraform/*' -exec dirname {} \; | sort)
+          roots=$(find examples -name '*.tf' \
+            -not -path '*/.terraform/*' \
+            -not -path 'examples/state/refactoring/refactored/*' \
+            -exec dirname {} \; | sort -u)
           for dir in $roots; do
             echo "::group::$dir"
             terraform -chdir="$dir" init -backend=false -input=false >/dev/null
