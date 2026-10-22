@@ -76,12 +76,15 @@ jobs:
       - run: terraform plan -lock-timeout=5m -out=tfplan
       - run: terraform show -no-color tfplan > plan.txt
 
-      - uses: actions/upload-artifact@v7
+      # A PR plan is a preview only. Save the binary plan only on main, where
+      # the apply job in this same workflow run will consume it.
+      - name: Upload deployment plan
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
         with:
           name: tfplan
-          path: |
-            ${{ env.TF_DIR }}/tfplan
-            ${{ env.TF_DIR }}/plan.txt
+          path: ${{ env.TF_DIR }}/tfplan
+          retention-days: 1
 
       - name: Comment the plan on the pull request
         if: github.event_name == 'pull_request'
@@ -90,13 +93,30 @@ jobs:
           script: |
             const fs = require('fs');
             const plan = fs.readFileSync(`${process.env.TF_DIR}/plan.txt`, 'utf8');
-            const body = '### Terraform plan\n\n```\n' + plan.slice(-60000) + '\n```';
+            const body = '### Terraform preview plan\n\n' +
+              'This PR plan is for review. After merge, the deployment workflow plans again from `main`.\n\n' +
+              '```\n' + plan.slice(-60000) + '\n```';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body,
             });
+
+      # This is the post-merge plan that the production reviewer approves.
+      - name: Add deployment plan to the run summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo '### Deployment plan'
+            echo
+            echo 'Generated from commit `${{ github.sha }}` after merge to `main`.'
+            echo 'Review this plan before approving the production environment.'
+            echo
+            echo '```'
+            tail -c 60000 plan.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -135,6 +155,6 @@ jobs:
           name: tfplan
           path: ${{ env.TF_DIR }}
 
-      # Apply exactly the plan that was reviewed. If state changed since,
-      # Terraform refuses and the workflow must be re-run.
+      # Apply the post-merge plan from this same workflow run. If state changed
+      # since it was created, Terraform refuses and the run must be repeated.
       - run: terraform apply -lock-timeout=5m tfplan

@@ -4,7 +4,7 @@
 
 ---
 
-Running `terraform apply` from laptops doesn't scale: who applied what, from which branch, with which local changes? A pipeline fixes that. Every change goes through a pull request, the plan is posted for review, and only the reviewed plan is applied, by CI, after merge. This chapter builds that pipeline with GitHub Actions, authenticated to GCP **without a single service account key**.
+Running `terraform apply` from laptops doesn't scale: who applied what, from which branch, with which local changes? A pipeline fixes that. Every change goes through a pull request, where a preview plan is posted for review. After merge, CI creates a fresh deployment plan from the exact commit on `main`; a production reviewer inspects that plan and approves its apply. This chapter builds that pipeline with GitHub Actions, authenticated to GCP **without a single service account key**.
 
 ## Before you start
 
@@ -170,23 +170,24 @@ config:
 ---
 flowchart LR
     pr(["✏️ pull request"])
-    checks["🧪 checks<br/>fmt · validate · tflint · trivy"]
-    plan["📋 plan<br/>terraform-plan SA"]
-    comment["💬 plan posted<br/>on the PR"]
+    prchecks["🧪 PR checks"]
+    preview["📋 preview plan"]
+    comment["💬 preview posted<br/>on the PR"]
     merge(["🔀 merge to main"])
-    approve{"👀 production<br/>approval"}
+    deploychecks["🧪 deployment checks"]
+    deployplan["📋 fresh plan<br/>from main"]
+    approve{"👀 review plan +<br/>production approval"}
     apply["🚀 apply saved plan<br/>terraform-apply SA"]
 
-    pr --> checks --> plan --> comment
-    merge --> checks
-    plan -->|"on main"| approve
+    pr --> prchecks --> preview --> comment --> merge
+    merge --> deploychecks --> deployplan --> approve
     approve -->|"approved"| apply
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
     classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
     class pr,merge ctrl
-    class checks,plan,approve eng
+    class prchecks,preview,deploychecks,deployplan,approve eng
     class comment,apply tgt
 ```
 
@@ -217,7 +218,7 @@ flowchart LR
 
 Everything from [Testing & Code Quality](testing-and-quality.md) and [Security Scanning](security-scanning.md), with `init -backend=false` so no credentials are needed. If you have module tests, add `terraform test` here.
 
-### 2. Plan, and post it
+### 2. Plan: preview on PR, deployment artifact on main
 
 ```yaml
   plan:
@@ -243,20 +244,34 @@ Everything from [Testing & Code Quality](testing-and-quality.md) and [Security S
       - run: terraform plan -lock-timeout=5m -out=tfplan
       - run: terraform show -no-color tfplan > plan.txt
 
-      - uses: actions/upload-artifact@v7
-        ...
+      - name: Upload deployment plan
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan
+          path: ${{ env.TF_DIR }}/tfplan
+          retention-days: 1
+
       - name: Comment the plan on the pull request
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v9
         ...
+
+      - name: Add deployment plan to the run summary
+        if: github.event_name == 'push'
+        run: |
+          # Append plan.txt to $GITHUB_STEP_SUMMARY for the approver.
+          ...
 ```
 
 - **`id-token: write`** is what allows the job to request the OIDC token. Without it, `google-github-actions/auth` fails.
 - **`-lock-timeout=5m`** waits for another run's lock instead of failing ([Remote Backend](../state/remote-backend.md#locking)).
-- **The plan is posted as a PR comment**, so reviewers read the real diff next to the code change. Review the plan, not just the code: a one-line change can mean a replacement.
-- **The saved plan is uploaded as an artifact**, for the apply job.
+- On a **pull request**, the plan is posted as a comment so reviewers can catch replacements and unexpected changes next to the code. It is a preview, not the file that will eventually be applied.
+- After merge, the `push` event starts a **new workflow run** against the exact commit on `main`. That run creates a fresh plan, puts its readable form in the run summary, and uploads the binary plan for its own apply job.
+- The PR and post-merge plans should normally agree, but they can differ if state, provider data, or `main` changed between runs. The production reviewer must inspect the post-merge plan rather than relying only on the PR comment.
+- Saved plans can contain sensitive values. The PR run does not upload one; the deployment artifact is retained for one day only. Keep repository and Actions access appropriately restricted.
 
-### 3. Apply the reviewed plan, after approval
+### 3. Apply the post-merge plan, after approval
 
 ```yaml
   apply:
@@ -279,13 +294,13 @@ Everything from [Testing & Code Quality](testing-and-quality.md) and [Security S
           name: tfplan
           path: ${{ env.TF_DIR }}
 
-      # Apply exactly the plan that was reviewed. If state changed since,
-      # Terraform refuses and the workflow must be re-run.
+      # Apply the post-merge plan from this same workflow run. If state changed
+      # since it was created, Terraform refuses and the run must be repeated.
       - run: terraform apply -lock-timeout=5m tfplan
 ```
 
-- **`environment: production`** pauses the job until a required reviewer approves it in the GitHub UI. It's also what makes the OIDC token's subject `repo:OWNER/REPO:environment:production`, the only subject the apply identity accepts.
-- **The apply uses the saved plan** from the plan job of the same run, so what's applied is exactly what the approver saw ([Core Workflow](../getting-started/core-workflow.md#7-saved-plans-apply-exactly-what-you-reviewed)). If anything changed in between, `apply` refuses the stale plan.
+- **`environment: production`** pauses the job until a required reviewer approves it in the GitHub UI. Before approving, open the run summary and inspect the deployment plan generated from `main`. The environment is also what makes the OIDC token's subject `repo:OWNER/REPO:environment:production`, the only subject the apply identity accepts.
+- **The apply uses the saved plan from the plan job of the same post-merge run.** That guarantees the approved deployment run applies its saved artifact rather than calculating an unreviewed plan during `apply` ([Core Workflow](../getting-started/core-workflow.md#7-saved-plans-apply-exactly-what-you-reviewed)). If state changes in between, Terraform refuses the stale plan.
 - **`concurrency`** queues applies one after another; with the state lock as a second safety net.
 
 The workflow files pass [actionlint](https://github.com/rhysd/actionlint), the linter for GitHub Actions; run it on your copies after editing them.
@@ -326,8 +341,9 @@ The workflow targets one directory, `infra/`. For several configurations (enviro
 - **No service account keys in CI.** Use Workload Identity Federation with `google-github-actions/auth`.
 - **Always set `attribute_condition`** on the provider, to your repository or organization.
 - **Separate plan and apply identities**: read-only for plans, write access only from a protected environment.
-- **Post the plan on every pull request** and review it, not just the code.
-- **Apply the saved plan** after a required approval, never a fresh `apply -auto-approve`.
+- **Post a preview plan on every pull request** and review it, not just the code.
+- **Plan again from the merged commit**, show that deployment plan to the production approver, and apply its saved artifact from the same run.
+- **Treat saved plans as sensitive**, restrict artifact access, and keep their retention short.
 - **Serialize applies** with `concurrency`, and wait for locks with `-lock-timeout`.
 - **Run fmt, validate, tflint, tests, and a security scan before every plan.**
 - **Check for drift on a schedule**, with the read-only identity.
