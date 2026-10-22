@@ -455,6 +455,21 @@ terraform plan -var 'models=["qwen2-5-7b"]'                      # only one mode
 terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # one added
 ```
 
+## Checkpoint
+
+1. A list of named environments may be reordered later. Should repeated resources use `count` or `for_each`, and why?
+2. A resource already references another resource's ID. Should you also add `depends_on`?
+3. A plan shows an unexpected destroy, but `prevent_destroy` blocks it. Is the incident solved? What should you investigate?
+
+<details>
+<summary>Answer</summary>
+
+1. Prefer `for_each` with stable keys. Reordering a `count` list changes numeric addresses and can update or replace the wrong instances.
+2. Usually no. The reference already creates the dependency; redundant explicit dependencies make plans more conservative and values more likely to remain unknown.
+3. No. The guard prevented damage, but the plan still reveals a configuration, address, or immutable-attribute problem. Find the proposed cause instead of removing the guard reflexively.
+
+</details>
+
 ## Best practices
 
 - **`for_each` for one-per-thing, `count` for on/off.** Avoid `count` over a list of things you might remove.

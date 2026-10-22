@@ -218,6 +218,21 @@ Look back at what's running, and where each part came from:
 
 To run it from CI, put `infra/` and `app/` in a repository, give each its own workflow directory (`TF_DIR`) and state prefix, and apply `infra` before `app`.
 
+## Checkpoint
+
+1. Why are `infra/` and `app/` separate configurations with separate state prefixes?
+2. Trace the identity used when the vLLM Pod reads model weights. Is a downloaded service-account key involved?
+3. You scale the vLLM Deployment to zero with `kubectl`. What happens to GPU cost, and what will the next Terraform plan report?
+
+<details>
+<summary>Answer</summary>
+
+1. The cluster must exist before Kubernetes providers can connect, and platform/workload lifecycles differ. Separate state preserves that dependency boundary and limits blast radius.
+2. The Pod runs as its KSA; GKE Workload Identity turns that into the KSA principal trusted by bucket IAM. It receives short-lived credentials—no JSON key or intermediate GSA is required here.
+3. The GPU Pod disappears and the autoscaler can return the GPU pool to zero nodes, stopping GPU compute cost. Terraform later sees the replica count as drift and proposes restoring the configured value unless lifecycle or inputs delegate that field.
+
+</details>
+
 ## Where to go from here
 
 - **A bigger model**: raise `--max-model-len` carefully, switch to `g2-standard-8` or more L4s with `--tensor-parallel-size`, or an A100/H100 pool for 70B-class models. Gated models (Llama) need the Hugging Face token from [Secret Manager](../gcp-foundations/secrets.md).

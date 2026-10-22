@@ -377,6 +377,21 @@ Don't write one when:
 - **It's used once**, and you're only guessing it'll be reused.
 - **It would nest three levels deep.** Keep modules flat: root modules call modules, and modules rarely call other modules.
 
+## Checkpoint
+
+1. Which values belong in a module's inputs, and which implementation details should stay internal?
+2. A caller needs the subnet ID created inside a module. Should it reach into the module's resources directly?
+3. When is copying three straightforward resources clearer than creating a new module?
+
+<details>
+<summary>Answer</summary>
+
+1. Expose choices callers genuinely need across uses; keep resource wiring, naming mechanics, and provider-specific details internal unless callers must control them.
+2. No. Add a purposeful module output and consume `module.<name>.<output>`. The output is the module's supported interface.
+3. When there is only one use, no stable reusable concept, and the abstraction would mostly forward every resource argument. Extract a module after a coherent interface emerges.
+
+</details>
+
 ## Best practices
 
 - **No `provider` blocks in reusable modules.** The caller configures providers and passes aliases with `providers = { ... }`.

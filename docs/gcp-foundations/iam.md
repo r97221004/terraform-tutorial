@@ -400,6 +400,21 @@ gcloud projects get-iam-policy "$TF_VAR_project_id" \
 
 The server SA has `objectViewer` on one bucket, and `logWriter` and `metricWriter` on the project. That's all. Over time, the [IAM recommender](https://cloud.google.com/policy-intelligence/docs/role-recommendations-overview) in the Console shows grants that were never used, so you can tighten them further.
 
+## Checkpoint
+
+1. You need to add one reader without taking ownership of anyone else's access. Choose `_iam_member`, `_iam_binding`, or `_iam_policy`.
+2. A workload needs to read one bucket. Where should `roles/storage.objectViewer` be granted: organization, project, or bucket?
+3. Why is impersonating a service account safer than downloading its JSON key?
+
+<details>
+<summary>Answer</summary>
+
+1. `_iam_member`; it adds one principal to one role without replacing the role's other members.
+2. On the bucket. Grant the narrowest role at the narrowest resource scope that satisfies the workload.
+3. Impersonation issues short-lived credentials through an audited permission check. A JSON key is a long-lived bearer credential that can be copied, leaked, and used outside its intended environment.
+
+</details>
+
 ## Best practices
 
 - **One service account per workload.** Never run anything as the Compute Engine default SA.

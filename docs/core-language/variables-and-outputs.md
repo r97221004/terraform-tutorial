@@ -481,6 +481,21 @@ Plan: 1 to add, 0 to change, 1 to destroy.
 
 That's not how you'd run two environments for real: both would share one state, so switching would destroy the other. [Environments](../modules/environments.md) shows the right way.
 
+## Checkpoint
+
+1. `TF_VAR_environment=dev`, `terraform.tfvars` says `staging`, and the command uses `-var environment=prod`. Which value wins?
+2. Does `sensitive = true` keep a value out of state? What protection does it actually provide?
+3. Decide whether each belongs in a variable, local, or output: caller-selected region; a computed naming prefix reused internally; the created bucket URL consumed by a script.
+
+<details>
+<summary>Answer</summary>
+
+1. `prod`; explicit command-line values have higher precedence than automatic variable files and `TF_VAR_` environment variables.
+2. No. It redacts normal CLI display, but the value can still be stored in state and saved plans. Protect those files and use ephemeral/write-only mechanisms when persistence must be prevented.
+3. Variable; local; output.
+
+</details>
+
 ## Best practices
 
 - **Give every variable a `description` and a `type`.** They're your configuration's documentation, and `type` catches mistakes before planning.

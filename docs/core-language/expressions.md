@@ -486,6 +486,21 @@ Plan: 0 to add, 3 to change, 0 to destroy.
 
 The bucket gains a `cors` block, both config files get new content, and `total_gpus` goes from 2 to 5. One list changed, and everything computed from it followed.
 
+## Checkpoint
+
+1. You have a map of buckets but only want entries whose `enabled` field is true. Which HCL construct expresses both transformation and filtering?
+2. When should you use `templatefile` instead of building a long YAML or startup-script string with interpolation?
+3. Choose the safer function: test whether an expression is valid without failing; provide a fallback when evaluation fails; select the first non-null/non-empty value.
+
+<details>
+<summary>Answer</summary>
+
+1. A `for` expression with an `if` clause, for example `{ for k, v in var.buckets : k => v if v.enabled }`.
+2. Use `templatefile` when the document is large enough to deserve its own syntax highlighting and review. Pass a small, explicit variables map and let `yamlencode` or `jsonencode` handle structured data where possible.
+3. `can`; `try`; `coalesce` (or `coalescelist` for lists).
+
+</details>
+
 ## Best practices
 
 - **Name intermediate results in `locals`.** `local.enabled_models` and `local.is_prod` make the resources that use them read like sentences.

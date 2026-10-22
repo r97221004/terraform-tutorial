@@ -217,6 +217,21 @@ The reason travels with the code, appears in review, and shows up in scan report
 
 **Pick one** and use it consistently, rather than running both and triaging everything twice. Trivy is a good default if you'll also scan container images (such as the vLLM image) with the same tool; Checkov if you want broad, opinionated IaC coverage.
 
+## Checkpoint
+
+1. Why can scanning a rendered plan find issues that scanning configuration alone misses?
+2. A scanner finding is not applicable. What must accompany a suppression?
+3. Do Trivy or Checkov replace plan review, IAM review, and runtime controls?
+
+<details>
+<summary>Answer</summary>
+
+1. Modules, expressions, defaults, and conditions are resolved in the plan, exposing effective resource values that aren't obvious in source files.
+2. A narrow suppression beside the resource, with a reason a reviewer can evaluate. Avoid repository-wide disables for one justified exception.
+3. No. They automate known policy checks; they don't understand every architecture, identity path, provider behavior, or runtime threat.
+
+</details>
+
 ## Best practices
 
 - **Scan every pull request**, and fail the build on HIGH and CRITICAL findings.

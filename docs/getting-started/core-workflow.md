@@ -448,6 +448,134 @@ gcloud storage ls "$(terraform output -raw bucket_url)"   # an empty bucket list
 
 Outputs are how one piece of infrastructure hands values to scripts, CI, or other Terraform configurations.
 
+## Checkpoint: run the workflow without a script
+
+Do this checkpoint **before step 9**, while the bucket still exists. Try each task before opening its answer. The goal isn't to memorize commands; it's to predict what Terraform will do, verify that prediction in the plan, and stop when the plan is unsafe.
+
+### 1. Predict the plan
+
+For each change, decide whether the plan will show `+` (create), `~` (update in place), `-/+` (replace), `-` (destroy), or no changes. Also predict the summary counts.
+
+| Change | Your prediction |
+|---|---|
+| Run `terraform plan` without changing anything | |
+| Add `environment = "dev"` to the bucket's `labels` | |
+| Change the bucket's `name` suffix from `-first-bucket` to `-first-bucket-v2` | |
+| Delete both the `google_storage_bucket.first` block and its `bucket_url` output | |
+
+Verify the first three with `terraform plan`, one at a time. **Do not apply** the name change: a bucket name is immutable, so that plan is destructive. Restore `main.tf` after each experiment and confirm that the final plan is clean.
+
+<details>
+<summary>Answer</summary>
+
+| Change | Expected result | Summary |
+|---|---|---|
+| No configuration change | no changes | `0 to add, 0 to change, 0 to destroy` |
+| Add a label | `~` update in place | `0 to add, 1 to change, 0 to destroy` |
+| Change the bucket name | `-/+` replacement | `1 to add, 0 to change, 1 to destroy` |
+| Delete the resource and its output | `-` destroy | `0 to add, 0 to change, 1 to destroy` |
+
+Terraform tracks the bucket at the address `google_storage_bucket.first`. Changing an ordinary mutable argument updates the object at that address; changing an immutable argument replaces it; removing the address from configuration tells Terraform the object is no longer wanted.
+
+</details>
+
+### 2. Make a change without copying
+
+Add an input variable named `environment` with type `string` and default value `"dev"`. Use it to add an `environment` label to the bucket.
+
+Then run, in order:
+
+```bash
+terraform fmt
+terraform validate
+terraform plan
+terraform apply
+terraform plan -var environment=staging
+```
+
+Before each `plan`, say out loud what you expect. Apply the default `dev` value, but don't apply the one-off `staging` override.
+
+<details>
+<summary>Answer</summary>
+
+One valid implementation is:
+
+```hcl
+variable "environment" {
+  description = "Environment label for the tutorial bucket."
+  type        = string
+  default     = "dev"
+}
+```
+
+```hcl
+  labels = {
+    managed-by  = "terraform"
+    tutorial    = "core-workflow"
+    environment = var.environment
+  }
+```
+
+The first plan adds a label with an in-place update. After applying it, a normal plan is clean. `terraform plan -var environment=staging` temporarily overrides the default and proposes another in-place label update; because you don't apply it, both the configuration default and the real bucket remain `dev`.
+
+</details>
+
+### 3. Break it, read the error, fix it
+
+Temporarily change the output reference from:
+
+```hcl
+value = google_storage_bucket.first.url
+```
+
+to the misspelled address:
+
+```hcl
+value = google_storage_bucket.frist.url
+```
+
+Run `terraform validate`. Before fixing it, identify all three parts of the address in the error: resource type, local name, and attribute. Restore `first`, then validate again.
+
+<details>
+<summary>Answer</summary>
+
+Terraform reports a reference to an undeclared resource because `google_storage_bucket.frist` doesn't exist in this module:
+
+- `google_storage_bucket` is the resource type.
+- `frist` is the misspelled local name; the declared name is `first`.
+- `url` is the exported attribute the output wants to read.
+
+The fix is to restore `google_storage_bucket.first.url`. `terraform validate` should then succeed without contacting GCP.
+
+</details>
+
+### 4. Explain the workflow
+
+Answer these in your own words:
+
+1. Why does Terraform need state if the `.tf` files already describe what you want?
+2. Why does a second `apply` normally produce no changes?
+3. What should you do when a small edit unexpectedly produces `-/+`?
+4. Why should a saved plan file be treated as sensitive?
+
+<details>
+<summary>Answer</summary>
+
+1. Configuration describes the desired result; state maps Terraform addresses such as `google_storage_bucket.first` to real remote object IDs and records known attributes. Terraform refreshes those objects and compares all three views to build a plan.
+2. After the first apply, configuration, state, and the real API object agree. Terraform is declarative, so it has nothing else to do.
+3. Stop. Read the attribute marked `# forces replacement`, decide whether losing and recreating the object is acceptable, and revert or redesign the change if it isn't. Don't apply merely because the edit looked small.
+4. A saved plan contains the exact proposed values and can include sensitive data even when the terminal display hides it. Don't commit or casually share plan files.
+
+</details>
+
+You're ready to continue when all of these are true:
+
+- [ ] You predicted the plan before running it, including the destructive replacement.
+- [ ] You added and applied the `environment` variable without copying the answer first.
+- [ ] You diagnosed the broken reference from Terraform's error message.
+- [ ] `terraform fmt -check`, `terraform validate`, and `terraform plan` all succeed; the plan is clean.
+- [ ] You can explain configuration, state, refresh, plan, and apply without looking back at the chapter.
+
 ## 9. `terraform destroy`: remove everything
 
 ```bash

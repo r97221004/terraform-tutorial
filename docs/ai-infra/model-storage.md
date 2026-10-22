@@ -248,6 +248,21 @@ spec:
 
 vLLM sees an ordinary directory and loads the weights from it. The next chapter writes this Pod spec in Terraform.
 
+## Checkpoint
+
+1. Should multi-gigabyte model weights normally be embedded in Terraform resources or uploaded with a data-transfer tool?
+2. Why keep the bucket, Artifact Registry, and GPU nodes in the same region?
+3. When is disabling soft delete reasonable, and when would it be dangerous?
+
+<details>
+<summary>Answer</summary>
+
+1. Use tools such as `gcloud storage cp`; Terraform should manage the bucket, policy, and repositories rather than moving large mutable data through state.
+2. Co-location reduces latency, cross-region transfer charges, and dependence on external registries during node startup.
+3. It is reasonable for reproducible weights that can be downloaded again and would otherwise incur recovery-storage cost. Keep protection for unique fine-tunes, checkpoints, or irreplaceable data.
+
+</details>
+
 ## Best practices
 
 - **Keep weights in a regional bucket in the GPUs' region**, with uniform access and public access prevention.

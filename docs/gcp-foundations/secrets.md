@@ -271,6 +271,21 @@ gcloud secrets get-iam-policy hf-token
 
 The download job, running as `model-downloader`, reads `projects/PROJECT/secrets/hf-token/versions/latest`. In Part 5, a Kubernetes service account is mapped to it through [Workload Identity](../ai-infra/workload-identity.md), so the vLLM pod reads the token without any key or Kubernetes Secret.
 
+## Checkpoint
+
+1. Does `sensitive = true` keep a secret out of state and saved plans?
+2. Choose the safer default: Terraform writes the secret value, or Terraform creates the container/IAM while a separate command or workload supplies the value.
+3. When Terraform must pass a secret, what combination prevents it from being persisted, and why is a version signal needed?
+
+<details>
+<summary>Answer</summary>
+
+1. No. It redacts normal display but regular values can still be serialized.
+2. Keep the value outside Terraform by default. Let Terraform manage the secret container and access policy, then add/read the value through the runtime identity or a dedicated secret operation.
+3. Use an ephemeral variable with a provider write-only argument. Because Terraform stores no value to compare later, a separate write-only version argument tells it when to send a new value.
+
+</details>
+
 ## Best practices
 
 - **Terraform manages secrets, IAM, and settings; values stay out of Terraform.** Add values with `gcloud` or another process.

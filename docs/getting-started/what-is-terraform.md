@@ -121,6 +121,23 @@ In 2023 HashiCorp moved Terraform from an open-source license to the source-avai
 
 This guide uses **Terraform**, but almost everything here works unchanged on OpenTofu.
 
+## Checkpoint
+
+Answer before expanding the solution:
+
+1. Someone deletes a Terraform-managed bucket in the Console. When will Terraform notice, and will it recreate the bucket automatically?
+2. Choose the best primary tool for each job: create a VPC, install packages inside a VM, deploy a fast-changing Kubernetes application.
+3. Explain why state is neither a cloud backup nor a continuously running controller.
+
+<details>
+<summary>Answer</summary>
+
+1. Terraform notices on the next refresh-backed operation such as `plan`. It does nothing until someone runs Terraform; an approved `apply` can recreate the bucket.
+2. Terraform for the VPC, a configuration tool such as Ansible for packages inside a VM, and Helm or GitOps tooling for the Kubernetes application.
+3. State maps configuration addresses to remote objects and caches known attributes. It doesn't contain the bucket's data, and Terraform exits after each command instead of continuously reconciling the cloud.
+
+</details>
+
 ## Best practices
 
 - **Change infrastructure through code only.** Every change made by hand in the Console becomes drift that someone has to discover later.

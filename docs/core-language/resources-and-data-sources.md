@@ -367,6 +367,21 @@ terraform state show google_storage_bucket.datasets
 
 Data sources are stored in state too (`terraform state list` shows `data.google_project.this`), but only as a cache of the last read. Removing a `data` block never deletes anything.
 
+## Checkpoint
+
+1. Choose among a resource, data source, input variable, or import: create a bucket; look up the active project's number; receive a project ID from the caller; adopt an existing bucket.
+2. Why can adding `depends_on` to a data source make its value unknown during planning?
+3. A configuration creates a bucket and then reads the same bucket back with a data source. What should it usually do instead?
+
+<details>
+<summary>Answer</summary>
+
+1. Resource; data source; input variable; import plus a matching resource block.
+2. Terraform must wait for the dependency to change before performing the read, so it can defer the data source until apply and show dependent values as unknown in the plan.
+3. Refer directly to the managed resource's attributes. Reading back an object the same configuration owns adds an unnecessary API read and can defer values.
+
+</details>
+
 ## Best practices
 
 - **One owner per object.** Each real object is a `resource` in exactly one configuration; everywhere else it's a `data` source or a variable.

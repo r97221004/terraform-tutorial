@@ -145,6 +145,21 @@ gcloud projects delete "$TF_VAR_project_id"
 
 The project enters a 30-day pending deletion period, during which it can be restored with `gcloud projects undelete`, and then everything in it is permanently deleted. This is why [Setup](../getting-started/setup.md#4-create-a-sandbox-project) had you create a dedicated project: deleting it is always a complete, safe cleanup.
 
+## Checkpoint
+
+1. Why must Kubernetes workloads be destroyed before the GKE cluster?
+2. Terraform reports every state empty. Why should you still run `leftovers.sh` and inspect GCP directly?
+3. Which resource is deleted last, and how do you confirm that billing actually stopped?
+
+<details>
+<summary>Answer</summary>
+
+1. Kubernetes controllers delete external disks, load balancers, and addresses when their objects are removed. Deleting the cluster first can orphan those billable resources.
+2. Terraform only knows objects recorded in each state. Manually created resources and infrastructure created indirectly by Kubernetes can survive outside it.
+3. Delete the remote-state bucket after all configurations and CI identities no longer need it. Check billable resources immediately, then verify Billing Reports after their reporting delay while keeping the budget alert active.
+
+</details>
+
 ## Best practices
 
 - **Destroy in reverse order of creation**: workloads, then clusters, then networks, then state.

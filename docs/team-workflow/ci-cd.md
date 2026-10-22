@@ -336,6 +336,21 @@ Exit code 2 means either drift or merged code that was never applied. Both deser
 
 The workflow targets one directory, `infra/`. For several configurations (environments and components, as in [Environments](../modules/environments.md)), turn `TF_DIR` into a **matrix** of directories, each with its own state prefix, and give each environment its own GitHub environment, approvers, and apply identity. Production and development then have separate approvals and separate credentials.
 
+## Checkpoint
+
+1. Is the PR-commented plan the binary plan applied after merge in this workflow? Describe the two runs.
+2. Why must the GitHub OIDC provider include an `attribute_condition`?
+3. Why use separate plan and apply service accounts plus a protected production environment?
+
+<details>
+<summary>Answer</summary>
+
+1. No. The PR run posts a preview. After merge, a new `push` run checks out the exact `main` commit, creates a fresh deployment plan, pauses for approval, and applies the saved artifact from that same run.
+2. GitHub repositories share the same token issuer. The condition restricts which repository or organization tokens the GCP provider will accept.
+3. Pull requests need read access to refresh and plan, not write access. The apply identity is available only after environment approval, reducing both credential exposure and the blast radius of untrusted changes.
+
+</details>
+
 ## Best practices
 
 - **No service account keys in CI.** Use Workload Identity Federation with `google-github-actions/auth`.

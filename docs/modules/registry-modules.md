@@ -231,6 +231,21 @@ terraform output
 
 The result is the same network as the previous two chapters: `ml-vpc`, one subnet with `pods` and `services` ranges, Cloud NAT, and two firewall rules.
 
+## Checkpoint
+
+1. Why should a registry module use an exact version rather than tracking an unbounded latest release?
+2. Before adopting a module, what three things should you inspect besides its README example?
+3. A root module and child module specify incompatible provider constraints. Can each install its own provider version?
+
+<details>
+<summary>Answer</summary>
+
+1. Module source code isn't covered by the provider lock file. An exact version keeps repeated initialization reproducible and makes upgrades explicit review events.
+2. Its inputs/outputs, resources and IAM it creates, provider/version requirements, upgrade notes, maintenance history, and source code for security-sensitive behavior.
+3. No. A configuration selects one version of each provider that must satisfy every module's constraints; incompatible constraints make initialization fail.
+
+</details>
+
 ## Best practices
 
 - **Always set `version`.** Use `~> X.Y` while developing, an exact version in production, and upgrade on purpose.

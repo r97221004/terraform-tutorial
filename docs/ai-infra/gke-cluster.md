@@ -292,6 +292,21 @@ The node has no external IP (`kubectl get nodes -o wide` shows `<none>`), and `k
 
 Check current prices on the [GKE pricing](https://cloud.google.com/kubernetes-engine/pricing) and [VM pricing](https://cloud.google.com/compute/vm-instance-pricing) pages; the [Cost Guide](../appendix/cost-guide.md) has the whole guide's numbers in one place.
 
+## Checkpoint
+
+1. Private GKE nodes have no public IPs. Which components let them reach Google APIs and other outbound destinations?
+2. Why manage the system node pool separately from the cluster's default pool?
+3. What should `deletion_protection` normally be in production, and why is the lab different?
+
+<details>
+<summary>Answer</summary>
+
+1. Private Google Access reaches Google APIs without public node IPs; Cloud NAT provides other outbound internet access. Firewall and routing still apply.
+2. A separate resource gives lifecycle, autoscaling, machine type, service account, and upgrades an explicit boundary instead of tying node changes to cluster creation.
+3. Normally `true` in production to block accidental cluster deletion. The lab sets it false so cleanup is reliable and ongoing charges can be stopped.
+
+</details>
+
 ## Best practices
 
 - **Regional clusters for production**, zonal for learning and development.

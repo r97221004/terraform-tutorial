@@ -338,6 +338,21 @@ The blocks are better in almost every way:
 
 The CLI commands are still useful for one-off repairs on a single state, for example after a failed experiment. Take a backup with `terraform state pull > backup.json` first.
 
+## Checkpoint
+
+1. You rename `google_storage_bucket.old` to `.models` without a `moved` block. What plan should make you stop?
+2. Match the operation to the intent: rename a Terraform address; adopt an existing object; stop managing an object without deleting it.
+3. Why are declarative `moved`, `import`, and `removed` blocks preferable to undocumented one-off state commands during reviewed refactors?
+
+<details>
+<summary>Answer</summary>
+
+1. A destroy of `.old` plus creation of `.models`. The real object didn't need replacement; Terraform only lost the address mapping.
+2. `moved`; `import`; `removed` with `destroy = false`.
+3. They live in code, appear in review, produce a previewable plan, and apply consistently for every teammate and environment instead of depending on one person's state surgery.
+
+</details>
+
 ## Best practices
 
 - **Read every refactoring plan for `destroy` and `must be replaced`.** A refactor should show moves, imports, and forgets, never a destroy.

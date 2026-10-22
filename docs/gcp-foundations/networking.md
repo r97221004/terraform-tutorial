@@ -291,6 +291,21 @@ gcloud compute routers nats list --router=ml-vpc-router-us-central1 --region="$T
 gcloud compute firewall-rules list --filter="network:ml-vpc"
 ```
 
+## Checkpoint
+
+1. Why does a VPC-native GKE subnet need separate secondary ranges for Pods and Services?
+2. Private nodes can reach the internet through Cloud NAT. Can the internet initiate a connection back through that NAT?
+3. A firewall rule allows `0.0.0.0/0` to SSH. What narrower source is used in this guide, and what else should limit the targets?
+
+<details>
+<summary>Answer</summary>
+
+1. GKE assigns alias IPs from distinct Pod and Service ranges, keeping those addresses separate from node primary IPs and making routing scalable.
+2. No. Cloud NAT provides outbound connections and their return traffic; it doesn't create an inbound listener or public IP on the nodes.
+3. Google's IAP TCP forwarding range, with target tags or service accounts restricting which instances the rule reaches. Prefer managed access paths over public SSH.
+
+</details>
+
 ## Best practices
 
 - **Custom-mode VPCs only.** Don't use the `default` network, and create projects with `auto_create_network = false`.

@@ -303,6 +303,21 @@ gcloud storage buckets list --filter="labels.tutorial=providers" --format="table
 
 All three buckets show up with the `tutorial=providers` label, even though none of them sets it.
 
+## Checkpoint
+
+1. Your constraint allows `8.x`, but the lock file selects `8.7.0`. Which version does a normal `terraform init` install, and how do you intentionally reconsider it?
+2. A resource must use the `google.dr` provider alias. What happens if its `provider = google.dr` line is omitted?
+3. Should every configuration declare both `google` and `google-beta` just in case?
+
+<details>
+<summary>Answer</summary>
+
+1. Terraform reuses `8.7.0` from the lock file. Run `terraform init -upgrade` deliberately, review the lock-file diff, and validate the resulting plan.
+2. It uses the default `google` configuration, which can place or read the resource in the wrong project or region.
+3. No. Add `google-beta` only for features that require it, and keep the stable provider as the default.
+
+</details>
+
 ## Best practices
 
 - **Declare every provider in `required_providers`** with an explicit `source` and `version`.

@@ -152,6 +152,21 @@ The log ends with the file's contents, `Read by a Pod with no keys.` There's no 
 
 The Pod has no `nodeSelector` and requests no GPU, so it runs on the system pool. Workload Identity works the same on the GPU pool, which also has `GKE_METADATA`.
 
+## Checkpoint
+
+1. In the direct Workload Identity pattern, what Kubernetes identity appears in the bucket IAM policy?
+2. A Pod needs to read one models bucket. Where should the grant live, and which role is sufficient?
+3. Why is the older KSA-to-GSA impersonation pattern unnecessary for many new GKE workloads?
+
+<details>
+<summary>Answer</summary>
+
+1. The KSA principal URI containing the workload identity pool plus namespace and service-account subject.
+2. Grant `roles/storage.objectViewer` on that bucket to the specific KSA principal, not broadly on the project.
+3. GKE can federate the KSA directly to Google IAM. A separate GSA adds another identity, binding, and impersonation hop unless a service or migration constraint requires it.
+
+</details>
+
 ## Best practices
 
 - **Grant roles to Kubernetes service accounts directly** (`principal://…/subject/ns/NS/sa/NAME`). Use the GSA-impersonation pattern only where direct access isn't supported.

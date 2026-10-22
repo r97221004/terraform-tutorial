@@ -394,6 +394,21 @@ Everything so far used a `terraform.tfstate` file in your working directory. Tha
 
 The fix is a **remote backend**: state stored in a GCS bucket, shared, versioned, access-controlled, and locked during every operation. That's the next chapter.
 
+## Checkpoint
+
+1. Someone changes a managed label in the Console. What are the two honest responses when the next plan reports drift?
+2. What does `terraform apply -refresh-only` change, and what does it deliberately not change?
+3. Why must state be protected even if every input variable is marked `sensitive` correctly?
+
+<details>
+<summary>Answer</summary>
+
+1. Reapply the configuration to revert the hand change, or update configuration to adopt the intended change. Don't leave code and reality disagreeing silently.
+2. It updates state and outputs to match refreshed remote objects; it doesn't modify remote infrastructure to match configuration.
+3. Providers record resource attributes in state, including IDs and potentially secret values. `sensitive` mainly redacts display and doesn't encrypt or remove those values.
+
+</details>
+
 ## Best practices
 
 - **Never edit state by hand, and never commit it.** Use `terraform state` commands and the plan-based tools in [Refactoring](refactoring.md).

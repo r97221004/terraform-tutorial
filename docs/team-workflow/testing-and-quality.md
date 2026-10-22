@@ -301,6 +301,21 @@ repos:
 
 In CI, run the same commands on every pull request, and fail the job on any non-zero exit. [CI/CD](ci-cd.md) puts them in a GitHub Actions workflow, before the plan.
 
+## Checkpoint
+
+1. Put these in cheapest-to-latest order: format, validate, lint, mocked unit test, security scan, real plan.
+2. What can a mocked `terraform test` prove, and what still requires an integration test or real plan?
+3. A rule must block production applies, not merely warn. Should it be a `check` assertion or a precondition/variable validation?
+
+<details>
+<summary>Answer</summary>
+
+1. Format, validate, lint, mocked unit test, security scan, real plan. Exact lint/test ordering can vary, but credential-free deterministic checks should run before cloud access.
+2. It can prove configuration logic, names, counts, conditions, outputs, and rejected inputs. Real API permissions, quotas, service behavior, and unsupported combinations require integration or planning against the target.
+3. Use a validation or precondition for a hard failure. A `check` block reports a warning and allows the operation to continue.
+
+</details>
+
 ## Best practices
 
 - **Run `fmt`, `validate`, `tflint`, and `terraform test` on every pull request.** None needs credentials.

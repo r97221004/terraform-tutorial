@@ -94,7 +94,7 @@ By the end you'll be able to:
 - **Ship it safely**: `terraform test`, linting, security scanning, and GitHub Actions that authenticate to GCP with no JSON keys.
 - **Tie it all together** in the [capstone](docs/capstone/llm-platform.md): an LLM inference platform you can build, use, and destroy on demand.
 
-Every section is hands-on: you write some HCL, run `terraform plan`, read the diff, and `apply` it.
+Every section is hands-on: you write some HCL, run `terraform plan`, read the diff, and `apply` it. Every curriculum chapter ends with a **Checkpoint** built around high-frequency decisions, small experiments, and common failure modes; answers stay collapsed until you choose to open them.
 
 ## Prerequisites
 

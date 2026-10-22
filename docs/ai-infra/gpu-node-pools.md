@@ -297,6 +297,21 @@ If the Pod stays `Pending` with `FailedScaleUp` events, the usual causes are quo
 
 Check the [GPU pricing](https://cloud.google.com/compute/gpus-pricing) and [Spot VM pricing](https://cloud.google.com/spot-vms/pricing) pages for current numbers. The point of the configuration above is that you pay these rates only for the minutes a GPU Pod actually runs.
 
+## Checkpoint
+
+1. The GPU pool has zero nodes. What event causes a node to appear, and what must the Pod request?
+2. When is Spot appropriate, and what behavior must the workload tolerate?
+3. Why combine a GPU request, node selector, and taint/toleration instead of relying on only one scheduling control?
+
+<details>
+<summary>Answer</summary>
+
+1. An unschedulable Pod requesting `nvidia.com/gpu` triggers the cluster autoscaler to add a matching GPU node, subject to quota and capacity.
+2. Use Spot for restartable inference, tests, and checkpointed jobs. The workload must tolerate interruption and retry elsewhere because capacity can be reclaimed at any time.
+3. The request allocates the device, the selector chooses the intended accelerator, and the taint keeps unrelated Pods off expensive nodes. Together they prevent both under-allocation and accidental GPU spending.
+
+</details>
+
 ## Best practices
 
 - **Request GPU quota before you need it**, for the exact GPU and both on-demand and preemptible variants if you'll use both.

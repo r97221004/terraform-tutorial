@@ -363,6 +363,21 @@ Region:  US-CENTRAL1
 
 The heredoc's indentation was stripped, and both `${ }` templates were filled in.
 
+## Checkpoint
+
+1. In `name = google_storage_bucket.models.name`, identify the argument, the resource reference, and the attribute being read.
+2. If resource B refers to an attribute of resource A, do you normally need `depends_on`? Predict the apply order.
+3. Misspell `var.region` as `var.regoin`, run `terraform validate`, and use the error to locate the broken reference. Then restore it.
+
+<details>
+<summary>Answer</summary>
+
+1. `name` is the argument being assigned; `google_storage_bucket.models` is the resource address; the final `.name` reads its exported attribute.
+2. No. The reference creates an implicit dependency, so Terraform orders A before the part of B that needs A's value. Reserve `depends_on` for dependencies that aren't expressed by data flow.
+3. Validation reports a reference to an undeclared input variable. Terraform names are exact; changing it back to `var.region` restores the declared reference.
+
+</details>
+
 ## Best practices
 
 - **Run `terraform fmt` before every commit.** It ends all arguments about alignment and indentation.

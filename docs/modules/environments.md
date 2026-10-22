@@ -277,6 +277,21 @@ flowchart LR
 - **Apply dev first**, check it works, then apply prod. [CI/CD](../team-workflow/ci-cd.md) automates this with an approval step before prod.
 - **With local module paths, both environments get the change at once** in the code, so the order is enforced by when you apply. When modules live in another repository, prod can also pin an older module version (`?ref=v1.3.0`) while dev tries the new one.
 
+## Checkpoint
+
+1. Dev and prod should share architecture but use different sizes and CIDRs. What should be shared, and where should differences live?
+2. Why can CLI workspaces be risky when environments require different credentials, approvals, or blast radii?
+3. Describe a safe promotion: should production receive copied code with manual edits, or the same reviewed module version with production inputs?
+
+<details>
+<summary>Answer</summary>
+
+1. Share modules and their tested behavior; keep environment-specific input values and separate state in thin environment roots.
+2. Workspaces hide environment selection in CLI state while the files look identical, making it easier to run against the wrong target. Separate directories/accounts make boundaries and automation clearer.
+3. Promote the same reviewed code or module version, changing only declared production inputs through its own plan and approval. Avoid copy-paste forks that drift.
+
+</details>
+
 ## Best practices
 
 - **One directory per environment, per component**, each a small root module with its own state.

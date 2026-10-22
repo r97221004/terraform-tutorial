@@ -201,6 +201,21 @@ echo "$TF_VAR_project_id $TF_VAR_region"            # both set
 
 If all five check out, you're ready for [Core Workflow](core-workflow.md).
 
+## Checkpoint
+
+1. `gcloud storage ls` works, but `terraform plan` reports that it cannot find credentials. Which login is probably missing?
+2. A $20 budget reaches 100%. Does GCP stop the resources, and what action actually stops compute charges?
+3. Before the first chapter, name the three values or checks that prevent you from creating resources in the wrong place.
+
+<details>
+<summary>Answer</summary>
+
+1. `gcloud auth application-default login`; Terraform uses ADC, not the separate credentials from `gcloud auth login`.
+2. No. A budget is an alert, not a spending cap. Destroying or stopping the billable resources—or deleting the dedicated sandbox project—stops new compute charges.
+3. Verify the active sandbox project, confirm billing is enabled, and check `TF_VAR_project_id` plus `TF_VAR_region` before planning. Keeping gcloud and ADC on the intended account matters too.
+
+</details>
+
 ## Best practices
 
 - **One sandbox project per learner or experiment.** Projects are free, and deleting one is the most complete cleanup there is.

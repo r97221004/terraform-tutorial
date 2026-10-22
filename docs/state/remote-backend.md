@@ -380,6 +380,21 @@ Whoever can read the state bucket can read every secret in every state in it. Pl
 
 [IAM & Service Accounts](../gcp-foundations/iam.md) shows how to grant these in Terraform, and [CI/CD](../team-workflow/ci-cd.md) gives the CI service account exactly this access.
 
+## Checkpoint
+
+1. Why must the GCS state bucket be created before the configuration can use it as a backend?
+2. Terraform reports that the state is locked. What should you check before considering `force-unlock`?
+3. Name three controls that make a state bucket safer for team use.
+
+<details>
+<summary>Answer</summary>
+
+1. Backend initialization happens before Terraform can plan resources, so a configuration cannot store its own initial state in a bucket that doesn't exist yet. Bootstrap it separately, then migrate state.
+2. Confirm no plan or apply is still running, identify the lock owner and operation, and wait or contact that person. Force-unlocking an active operation can allow concurrent state writes and corruption.
+3. Uniform access with least-privilege IAM, object versioning/recovery, and state locking. Also prevent public access, keep separate prefixes, and delete the bucket last.
+
+</details>
+
 ## Best practices
 
 - **Use a remote backend for anything more than a personal experiment.**

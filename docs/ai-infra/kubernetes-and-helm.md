@@ -360,6 +360,21 @@ $(terraform output -raw port_forward_ui) &
 
 Port-forwarding keeps everything private. Exposing either service publicly needs a load balancer with authentication in front, which is beyond this guide.
 
+## Checkpoint
+
+1. Why split cluster infrastructure and Kubernetes workloads into two Terraform configurations?
+2. What credential should configure the Kubernetes provider: a committed static token or a short-lived value obtained at run time?
+3. Choose a delivery mechanism: a few stable platform objects; a packaged third-party application; rapidly changing application releases managed continuously.
+
+<details>
+<summary>Answer</summary>
+
+1. Provider configuration needs a reachable cluster before it can plan Kubernetes objects. Separate states also keep slow platform lifecycle apart from fast workload changes.
+2. Use a short-lived token obtained through ADC/ephemeral provider data. Never commit a long-lived cluster credential.
+3. Terraform's Kubernetes provider; Helm; GitOps tooling such as Argo CD or Flux.
+
+</details>
+
 ## Best practices
 
 - **Keep Kubernetes resources in a separate configuration from the cluster**, and find the cluster with a data source.

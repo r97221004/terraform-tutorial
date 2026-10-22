@@ -312,6 +312,21 @@ gcloud artifacts repositories list --location="$TF_VAR_region"
 
 Enabling `compute.googleapis.com` the first time can take a minute or two, and it also creates the project's Compute Engine default service account. You'll see why not to use that account in [IAM & Service Accounts](iam.md).
 
+## Checkpoint
+
+1. Why does this guide normally set `disable_on_destroy = false` on `google_project_service`?
+2. A resource can infer the provider's project, but the module is used across projects. Should the resource set `project` explicitly?
+3. An API and a resource are created in the same plan. How do you make the dependency visible and avoid racing API activation?
+
+<details>
+<summary>Answer</summary>
+
+1. Disabling a shared API during cleanup can disrupt resources outside this configuration, and leaving an API enabled has no direct charge.
+2. Yes. Passing and setting `project_id` makes placement reviewable and prevents ambient provider configuration from sending resources to the wrong project.
+3. Reference an attribute of the corresponding `google_project_service` where possible, or use an explicit dependency when no data reference exists. The provider then waits for enablement before creating the dependent resource.
+
+</details>
+
 ## Best practices
 
 - **One project per environment**, created by a project factory where your organization allows it.
