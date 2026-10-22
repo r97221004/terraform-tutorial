@@ -110,7 +110,7 @@ jobs:
           {
             echo '### Deployment plan'
             echo
-            echo 'Generated from commit `${{ github.sha }}` after merge to `main`.'
+            printf 'Generated from commit `%s` after merge to `main`.\n' "$GITHUB_SHA"
             echo 'Review this plan before approving the production environment.'
             echo
             echo '```'
