@@ -22,3 +22,8 @@ output "subnet_cidrs" {
   description = "One /20 per environment, carved out with cidrsubnet."
   value       = local.subnet_cidrs
 }
+
+output "bundle_path" {
+  description = "Path of the zip bundle."
+  value       = archive_file.bundle.output_path
+}

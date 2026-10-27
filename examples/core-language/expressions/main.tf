@@ -1,5 +1,5 @@
 locals {
-  # Conditional: production keeps old object versions, other environments don't.
+  # Conditional: production configs get more replicas and read-only files.
   is_prod = var.environment == "prod"
 
   # String functions turn free text into a valid label value
@@ -29,49 +29,11 @@ locals {
   }
 }
 
-resource "google_storage_bucket" "serving" {
-  name     = "${var.project_id}-expressions-${var.environment}"
-  location = var.region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = !local.is_prod
-
-  versioning {
-    enabled = local.is_prod
-  }
-
-  # dynamic block: one lifecycle_rule per entry in var.storage_tiers.
-  dynamic "lifecycle_rule" {
-    for_each = var.storage_tiers
-    content {
-      condition {
-        age = lifecycle_rule.value
-      }
-      action {
-        type          = "SetStorageClass"
-        storage_class = lifecycle_rule.key
-      }
-    }
-  }
-
-  # Optional nested block: zero or one cors block, depending on the input.
-  dynamic "cors" {
-    for_each = length(var.cors_origins) > 0 ? [var.cors_origins] : []
-    content {
-      origin          = cors.value
-      method          = ["GET", "HEAD"]
-      response_header = ["Content-Type"]
-      max_age_seconds = 3600
-    }
-  }
-}
-
 # templatefile renders a file from a template, with loops and conditionals.
-resource "google_storage_bucket_object" "serving_config" {
-  bucket       = google_storage_bucket.serving.name
-  name         = "config/serving.yaml"
-  content_type = "application/yaml"
+resource "local_file" "serving_config" {
+  filename             = "${path.module}/out/${var.environment}/serving.yaml"
+  file_permission      = local.is_prod ? "0444" : "0644"
+  directory_permission = "0755"
 
   content = templatefile("${path.module}/templates/serving.yaml.tftpl", {
     environment = var.environment
@@ -81,14 +43,40 @@ resource "google_storage_bucket_object" "serving_config" {
 }
 
 # The same kind of document, built with yamlencode instead of a template.
-resource "google_storage_bucket_object" "model_index" {
-  bucket       = google_storage_bucket.serving.name
-  name         = "config/models.yaml"
-  content_type = "application/yaml"
+resource "local_file" "model_index" {
+  filename             = "${path.module}/out/${var.environment}/models.yaml"
+  file_permission      = local.is_prod ? "0444" : "0644"
+  directory_permission = "0755"
 
   content = yamlencode({
     environment = var.environment
+    labels      = local.labels
     total_gpus  = local.total_gpus
     models      = local.gpus_by_model
   })
+}
+
+# A zip bundle with one file per enabled model. `source` is a nested block,
+# so the per-model files come from dynamic blocks, not a for expression.
+resource "archive_file" "bundle" {
+  type        = "zip"
+  output_path = "${path.module}/out/${var.environment}/bundle.zip"
+
+  # dynamic block: one source block per enabled model.
+  dynamic "source" {
+    for_each = local.gpus_by_model
+    content {
+      filename = "models/${source.key}.yaml"
+      content  = yamlencode({ name = source.key, gpus = source.value })
+    }
+  }
+
+  # Optional nested block: zero or one NOTES.txt, depending on the input.
+  dynamic "source" {
+    for_each = var.release_notes != "" ? [var.release_notes] : []
+    content {
+      filename = "NOTES.txt"
+      content  = source.value
+    }
+  }
 }

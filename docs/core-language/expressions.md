@@ -4,7 +4,7 @@
 
 ---
 
-So far every value has been a literal, a reference, or a string template. Real configurations need more: "versioning only in prod", "one lifecycle rule per storage tier", "the names of every enabled model", "a YAML config file rendered from a list". Terraform has no loops or `if` statements. Instead it has **expressions** that compute values, and about a hundred **built-in functions**. This chapter covers the ones you'll actually use.
+So far every value has been a literal, a reference, or a string template. Real configurations need more: "read-only files only in prod", "one file per enabled model", "the names of every enabled model", "a YAML config file rendered from a list". Terraform has no loops or `if` statements. Instead it has **expressions** that compute values, and about a hundred **built-in functions**. This chapter covers the ones you'll actually use.
 
 ## Before you start
 
@@ -13,7 +13,7 @@ cd examples/core-language/expressions
 terraform init
 ```
 
-The example sets up a bucket for an LLM serving platform. Its settings, lifecycle rules, and two config files are all computed from a list of models and a few inputs, using every technique in this chapter:
+The example generates the config for an LLM serving platform: two YAML files and a zip bundle with one file per model. All of it is computed from a list of models and a few inputs, using every technique in this chapter:
 
 ```mermaid
 ---
@@ -29,25 +29,26 @@ config:
 ---
 flowchart LR
     models["📥 var.models<br/>3 models"]
-    tiers["📥 var.storage_tiers"]
+    notes["📥 var.release_notes"]
     enabled["🧮 local.enabled_models<br/>2 models"]
     gpus["🧮 local.gpus_by_model"]
     serving["📄 serving.yaml"]
     index["📄 models.yaml"]
-    bucket["🪣 bucket<br/>lifecycle_rule × 2"]
+    bundle["📦 bundle.zip<br/>source × 2"]
 
     models -->|"for … if enabled"| enabled
     enabled -->|"for … =>"| gpus
     enabled -->|"templatefile"| serving
     gpus -->|"yamlencode"| index
-    tiers -->|"dynamic block"| bucket
+    gpus -->|"dynamic block"| bundle
+    notes -. "optional block" .-> bundle
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
     classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
-    class models,tiers tgt
+    class models,notes tgt
     class enabled,gpus ctrl
-    class serving,index,bucket eng
+    class serving,index,bundle eng
 ```
 
 Keep **`terraform console`** open in a second terminal while you read. Every expression on this page can be pasted into it, and evaluated against the example's variables and locals:
@@ -60,17 +61,13 @@ terraform console
 
 ```hcl
 locals {
-  # Conditional: production keeps old object versions, other environments don't.
+  # Conditional: production configs get more replicas and read-only files.
   is_prod = var.environment == "prod"
 }
 
-resource "google_storage_bucket" "serving" {
+resource "local_file" "serving_config" {
   ...
-  force_destroy = !local.is_prod
-
-  versioning {
-    enabled = local.is_prod
-  }
+  file_permission = local.is_prod ? "0444" : "0644"
 }
 ```
 
@@ -86,8 +83,8 @@ resource "google_storage_bucket" "serving" {
 **`null` means "leave it out".** Setting an argument to `null` is the same as not writing it, so the provider default applies. That makes conditionals useful for optional arguments:
 
 ```hcl
-  # Pin a storage class only when one is given; otherwise GCS uses its default.
-  storage_class = var.storage_class != "" ? var.storage_class : null
+  # Set a permission only when one is given; otherwise the provider's default applies.
+  file_permission = var.file_mode != "" ? var.file_mode : null
 ```
 
 ## `for` expressions
@@ -156,7 +153,7 @@ A few more forms you'll meet:
 | Form | Example | Notes |
 |---|---|---|
 | Index and value of a list | `[for i, m in var.models : "${i}:${m.name}"]` | `i` is 0, 1, 2… |
-| Key and value of a map | `[for k, v in var.storage_tiers : "${k} after ${v} days"]` | maps iterate in sorted key order |
+| Key and value of a map | `[for k, v in local.gpus_by_model : "${k} needs ${v} GPU"]` | maps iterate in sorted key order |
 | Grouping | `{ for m in var.models : m.gpus => m.name... }` | the `...` collects values with the same key into a list |
 
 Map keys must be unique. If two items produce the same key, Terraform stops with a `Duplicate object key` error, unless you use `...` to group them.
@@ -178,104 +175,79 @@ tolist([
 
 ## Dynamic blocks
 
-`for` expressions build **values**. But some settings are **nested blocks**, like a bucket's `lifecycle_rule`, and you can't assign a list to a block. A **`dynamic` block** generates one nested block per element of a collection:
+`for` expressions build **values**. But some settings are **nested blocks**, and you can't assign a list to a block. The example's zip bundle, an `archive_file` resource from the `archive` provider, takes one `source` block per file inside the zip. A **`dynamic` block** generates one nested block per element of a collection:
 
 ```hcl
-variable "storage_tiers" {
-  description = "Move objects to a cheaper storage class after this many days."
-  type        = map(number)
-  default = {
-    NEARLINE = 30
-    COLDLINE = 90
-  }
-}
-```
+resource "archive_file" "bundle" {
+  type        = "zip"
+  output_path = "${path.module}/out/${var.environment}/bundle.zip"
 
-```hcl
-  # dynamic block: one lifecycle_rule per entry in var.storage_tiers.
-  dynamic "lifecycle_rule" {
-    for_each = var.storage_tiers
+  # dynamic block: one source block per enabled model.
+  dynamic "source" {
+    for_each = local.gpus_by_model
     content {
-      condition {
-        age = lifecycle_rule.value
-      }
-      action {
-        type          = "SetStorageClass"
-        storage_class = lifecycle_rule.key
-      }
+      filename = "models/${source.key}.yaml"
+      content  = yamlencode({ name = source.key, gpus = source.value })
     }
   }
+  ...
+}
 ```
 
 - `dynamic "<block type>"` names the block to generate.
 - `for_each` is the collection to loop over: a list, set, or map.
-- Inside `content`, the **iterator** is named after the block: `lifecycle_rule.key` and `lifecycle_rule.value`. For a list, `key` is the index.
+- Inside `content`, the **iterator** is named after the block: `source.key` and `source.value`. For a list, `key` is the index.
 
 The plan shows two ordinary blocks, as if you'd written them out by hand:
 
 ```
-      + lifecycle_rule {
-          + action {
-              + storage_class = "COLDLINE"
-              + type          = "SetStorageClass"
-            }
-          + condition {
-              + age                    = 90
-              ...
-            }
+      + source {
+          + content  = <<-EOT
+                "gpus": 1
+                "name": "llama-3-1-8b"
+            EOT
+          + filename = "models/llama-3-1-8b.yaml"
         }
-      + lifecycle_rule {
-          + action {
-              + storage_class = "NEARLINE"
-              + type          = "SetStorageClass"
-            }
-          + condition {
-              + age                    = 30
-              ...
-            }
+      + source {
+          + content  = <<-EOT
+                "gpus": 1
+                "name": "qwen2-5-7b"
+            EOT
+          + filename = "models/qwen2-5-7b.yaml"
         }
 ```
+
+On GCP you'll use the same construct for a bucket's `lifecycle_rule` blocks or a firewall's `allow` blocks.
 
 ### An optional block: zero or one
 
 A block can't be set to `null`. To include a block only sometimes, loop over a list with **zero or one** element:
 
 ```hcl
-  # Optional nested block: zero or one cors block, depending on the input.
-  dynamic "cors" {
-    for_each = length(var.cors_origins) > 0 ? [var.cors_origins] : []
+  # Optional nested block: zero or one NOTES.txt, depending on the input.
+  dynamic "source" {
+    for_each = var.release_notes != "" ? [var.release_notes] : []
     content {
-      origin          = cors.value
-      method          = ["GET", "HEAD"]
-      response_header = ["Content-Type"]
-      max_age_seconds = 3600
+      filename = "NOTES.txt"
+      content  = source.value
     }
   }
 ```
 
-By default `cors_origins` is empty, so there's no `cors` block. Pass an origin and it appears:
+By default `release_notes` is empty, so the bundle has no notes file. Pass some notes and the block appears:
 
 ```bash
-terraform plan -var 'cors_origins=["https://chat.example.com"]'
+terraform plan -var 'release_notes=First release with Qwen.'
 ```
 
 ```
-      + cors {
-          + max_age_seconds = 3600
-          + method          = [
-              + "GET",
-              + "HEAD",
-            ]
-          + origin          = [
-              + "https://chat.example.com",
-            ]
-          + response_header = [
-              + "Content-Type",
-            ]
+      + source {
+          + content  = "First release with Qwen."
+          + filename = "NOTES.txt"
         }
 ```
 
-> 💡 **Don't overuse `dynamic`.** It makes code harder to read. Use it when the number of blocks really comes from input, or for an optional block. If you always have exactly two lifecycle rules, write two `lifecycle_rule` blocks.
+> 💡 **Don't overuse `dynamic`.** It makes code harder to read. Use it when the number of blocks really comes from input, or for an optional block. If the bundle always held exactly two files, you'd write two `source` blocks.
 
 ## Functions
 
@@ -353,7 +325,7 @@ IP planning is arithmetic, and getting it wrong means overlapping subnets. `cidr
 
 ### Encoding: `jsonencode`, `yamlencode`, `base64encode`
 
-Many GCP and Kubernetes arguments want a JSON or YAML **string**. Build the structure in HCL and encode it, instead of writing JSON by hand inside a heredoc:
+Many arguments, from a file's `content` to GCP IAM policies and Kubernetes manifests, want a JSON or YAML **string**. Build the structure in HCL and encode it, instead of writing JSON by hand inside a heredoc:
 
 ```
 > jsonencode({ replicas = 2, gpu = "nvidia-l4" })
@@ -365,6 +337,7 @@ The example writes a small model index with `yamlencode`:
 ```hcl
   content = yamlencode({
     environment = var.environment
+    labels      = local.labels
     total_gpus  = local.total_gpus
     models      = local.gpus_by_model
   })
@@ -372,6 +345,10 @@ The example writes a small model index with `yamlencode`:
 
 ```yaml
 "environment": "dev"
+"labels":
+  "environment": "dev"
+  "managed-by": "terraform"
+  "owner": "ml-platform-team"
 "models":
   "llama-3-1-8b": 1
   "qwen2-5-7b": 1
@@ -448,14 +425,16 @@ string must be a decimal representation of a number.
 
 ### Provider-defined functions
 
-Providers can ship functions too, called with a `provider::<name>::` prefix. The google provider has helpers for picking apart GCP resource IDs:
+Providers can ship functions too, called with a `provider::<name>::` prefix. The `local` provider has one that checks for a directory:
 
 ```
-> provider::google::region_from_zone("us-central1-a")
-"us-central1"
-> provider::google::name_from_id("projects/my-proj/global/networks/vpc-main")
-"vpc-main"
+> provider::local::direxists(path.module)
+true
+> provider::local::direxists("${path.module}/out")
+false
 ```
+
+(`out` doesn't exist until the first `apply`.) From Part 2 on, the google provider adds helpers for picking apart GCP resource IDs, such as `provider::google::region_from_zone("us-central1-a")`, which returns `"us-central1"`.
 
 They only work for providers declared in `required_providers`. The list is on the provider's Registry page, under **Functions**.
 
@@ -464,38 +443,42 @@ They only work for providers declared in `required_providers`. The list is on th
 ```bash
 terraform plan     # Plan: 3 to add, 0 to change, 0 to destroy.
 terraform apply
-gcloud storage cat "gs://$TF_VAR_project_id-expressions-dev/config/serving.yaml"
-gcloud storage cat "gs://$TF_VAR_project_id-expressions-dev/config/models.yaml"
+cat out/dev/serving.yaml out/dev/models.yaml
+unzip -l out/dev/bundle.zip
 ```
 
-Then change the inputs and watch everything follow. Enable Mixtral and add a CORS origin:
+Then change the inputs and watch everything follow. Enable Mixtral, drop Qwen, and add release notes:
 
 ```bash
 terraform plan \
   -var 'models=[{name="llama-3-1-8b",repo="meta-llama/Llama-3.1-8B-Instruct"},{name="mixtral-8x7b",repo="mistralai/Mixtral-8x7B-Instruct-v0.1",gpus=4}]' \
-  -var 'cors_origins=["https://chat.example.com"]'
+  -var 'release_notes=Adds Mixtral.'
 ```
 
 ```
-  # google_storage_bucket.serving will be updated in-place
-  # google_storage_bucket_object.model_index will be updated in-place
-  # google_storage_bucket_object.serving_config will be updated in-place
+  # archive_file.bundle must be replaced
+  # local_file.model_index must be replaced
+  # local_file.serving_config must be replaced
 ...
-Plan: 0 to add, 3 to change, 0 to destroy.
+Plan: 3 to add, 0 to change, 3 to destroy.
+
+Changes to Outputs:
+  ...
+  ~ total_gpus    = 2 -> 5
 ```
 
-The bucket gains a `cors` block, both config files get new content, and `total_gpus` goes from 2 to 5. One list changed, and everything computed from it followed.
+Both config files get new content, the bundle gains a Mixtral file and a `NOTES.txt`, and `total_gpus` goes from 2 to 5. One list changed, and everything computed from it followed. (Here every change is a replacement, because files can't be edited in place. On GCP, most of the same changes would be in-place updates.)
 
 ## Checkpoint
 
-1. You have a map of buckets but only want entries whose `enabled` field is true. Which HCL construct expresses both transformation and filtering?
+1. You have a map of models but only want entries whose `enabled` field is true. Which HCL construct expresses both transformation and filtering?
 2. When should you use `templatefile` instead of building a long YAML or startup-script string with interpolation?
 3. Choose the safer function: test whether an expression is valid without failing; provide a fallback when evaluation fails; select the first non-null/non-empty value.
 
 <details>
 <summary>Answer</summary>
 
-1. A `for` expression with an `if` clause, for example `{ for k, v in var.buckets : k => v if v.enabled }`.
+1. A `for` expression with an `if` clause, for example `{ for k, v in var.models : k => v if v.enabled }`.
 2. Use `templatefile` when the document is large enough to deserve its own syntax highlighting and review. Pass a small, explicit variables map and let `yamlencode` or `jsonencode` handle structured data where possible.
 3. `can`; `try`; `coalesce` (or `coalescelist` for lists).
 
@@ -515,7 +498,10 @@ The bucket gains a `cors` block, both config files get new content, and `total_g
 
 ```bash
 terraform destroy
+rm -rf out
 ```
+
+`destroy` removes the two YAML files, but the `archive` provider leaves the zip on disk, so delete the `out/` directory yourself. It's a reminder that "destroyed" means whatever the provider does on delete; read the plan and the docs, not just the summary line.
 
 ---
 

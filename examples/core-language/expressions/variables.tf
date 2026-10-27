@@ -1,14 +1,3 @@
-variable "project_id" {
-  description = "The GCP project to create resources in. Set via TF_VAR_project_id."
-  type        = string
-}
-
-variable "region" {
-  description = "Default region. Set via TF_VAR_region."
-  type        = string
-  default     = "us-central1"
-}
-
 variable "environment" {
   description = "Deployment environment."
   type        = string
@@ -36,17 +25,8 @@ variable "models" {
   ]
 }
 
-variable "storage_tiers" {
-  description = "Move objects to a cheaper storage class after this many days."
-  type        = map(number)
-  default = {
-    NEARLINE = 30
-    COLDLINE = 90
-  }
-}
-
-variable "cors_origins" {
-  description = "Browser origins allowed to read the bucket directly. Empty means no CORS rule."
-  type        = list(string)
-  default     = []
+variable "release_notes" {
+  description = "Optional release notes, added to the bundle as NOTES.txt. Empty means no notes file."
+  type        = string
+  default     = ""
 }
