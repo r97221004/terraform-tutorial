@@ -99,29 +99,27 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 ## Prerequisites
 
 - A Linux, macOS, or WSL2 shell with basic command-line familiarity.
-- A **Google Cloud account with billing enabled**. Free trial credit covers Parts 1–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Setup](docs/getting-started/setup.md#4-create-a-sandbox-project) explains both.
-- Terraform **1.11+** and the **gcloud CLI**. [Setup](docs/getting-started/setup.md) walks you through both.
+- Terraform **1.11+**. [Setup](docs/getting-started/setup.md) installs it. That's all Getting Started and Part 1 need: they run on your own machine.
+- From Part 2 on, a **Google Cloud account with billing enabled** and the **gcloud CLI**. Free trial credit covers Parts 2–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Connecting to GCP](docs/state/google-provider.md#set-up-gcp) walks you through all of it.
 
-> 💸 **About cost.** Parts 1–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Setup has you create a **budget alert** before anything else, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
+> 💸 **About cost.** Getting Started and Part 1 cost nothing: they only create local files. Parts 2–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Part 2 starts by having you create a **budget alert** before any cloud resource, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
 
-> 📋 **About the output shown.** Plans, errors, and test results in the docs come from real runs of Terraform 1.16 and google provider 8.7, against a sandbox project ID or local mock APIs. Your project ID, project number, emails, lock IDs, and timestamps will differ; a few outputs that depend on running cloud resources (such as `kubectl get nodes`) are illustrative and say so where it matters.
+> 📋 **About the output shown.** Plans, errors, and test results in the docs come from real runs of Terraform 1.16 and google provider 8.7, against a sandbox project ID or local mock APIs, and of Terraform 1.17 for the local-only chapters. Your project ID, project number, emails, lock IDs, and timestamps will differ; a few outputs that depend on running cloud resources (such as `kubectl get nodes`) are illustrative and say so where it matters.
 
-Before starting Part 1, check that your tools work:
+Before starting, check that Terraform works:
 
 ```bash
 terraform version                          # Terraform v1.11 or newer
-gcloud config get-value project            # your sandbox project ID
-gcloud auth application-default print-access-token > /dev/null && echo "ADC OK"
 ```
 
-If any of these fail, finish [Setup](docs/getting-started/setup.md) first.
+If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP checks come later, in [Connecting to GCP](docs/state/google-provider.md#verify).
 
 ## Table of Contents
 
 **Getting Started**
 
 - [**What is Terraform?**](docs/getting-started/what-is-terraform.md): Infrastructure as Code, and the one idea behind everything.
-- [**Setup**](docs/getting-started/setup.md): Terraform, gcloud, a sandbox project, a budget alert, and ADC.
+- [**Setup**](docs/getting-started/setup.md): install Terraform; nothing else is needed until Part 2.
 - [**Core Workflow**](docs/getting-started/core-workflow.md): `init` → `plan` → `apply` → `destroy` on local resources, no cloud account needed.
 - [**Anatomy of HCL**](docs/getting-started/hcl-anatomy.md): blocks, arguments, and expressions.
 
@@ -135,7 +133,7 @@ If any of these fail, finish [Setup](docs/getting-started/setup.md) first.
 
 **Part 2 — GCP & State**
 
-- [**Connecting to GCP**](docs/state/google-provider.md): the google provider, default labels, aliases, and google-beta.
+- [**Connecting to GCP**](docs/state/google-provider.md): a sandbox project, budget alert, and ADC; then the google provider, default labels, aliases, and google-beta.
 - [**State & Drift**](docs/state/state-basics.md): what state is and how to inspect it.
 - [**Remote Backend on GCS**](docs/state/remote-backend.md): shared state with locking.
 - [**Refactoring: moved, import, removed**](docs/state/refactoring.md): change addresses without destroying anything.

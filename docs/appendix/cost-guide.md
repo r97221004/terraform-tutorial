@@ -76,7 +76,7 @@ GKE gives **$74.40 of credit per billing account per month**, equal to the manag
 
 ## Habits that keep it near zero
 
-- **Create the budget alert first** ([Setup](../getting-started/setup.md#5-create-a-budget-alert-now)), and remember it only warns.
+- **Create the budget alert first** ([Connecting to GCP](../state/google-provider.md#4-create-a-budget-alert-now)), and remember it only warns.
 - **Destroy at the end of every session** that involved Part 5 or the capstone. Everything is in code, so rebuilding is just `terraform apply`.
 - **Scale GPU pools to zero** and use **Spot** for everything that can restart ([GPU Node Pools](../ai-infra/gpu-node-pools.md)).
 - **Cap GPU pools** with `total_max_node_count`, and keep GPU quota no higher than you need.

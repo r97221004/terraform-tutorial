@@ -6,13 +6,13 @@
 
 ## Before you start
 
-This chapter doesn't touch GCP. All you need is Terraform from [Setup](setup.md#1-install-terraform):
+This chapter, and everything up to the end of Part 1, doesn't touch GCP. All you need is Terraform from [Setup](setup.md#install-terraform):
 
 ```bash
 terraform version   # v1.11 or newer
 ```
 
-The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing, can't break anything, and behave like cloud resources in every way that matters for learning the workflow. Later chapters switch to real GCP resources.
+The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing, can't break anything, and behave like cloud resources in every way that matters for learning the workflow. You'll switch to real GCP resources at the start of Part 2.
 
 Everything in this chapter runs in one directory:
 
