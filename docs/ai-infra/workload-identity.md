@@ -81,7 +81,7 @@ locals {
   + namespace_principals = "principalSet://iam.googleapis.com/projects/123456789012/locations/global/workloadIdentityPools/tf-tutorial-3fa9c1.svc.id.goog/namespace/ml-serving"
 ```
 
-- The identifier uses the **project number**, which is why the configuration reads it with the `google_project` data source ([Resources & Data Sources](../core-language/resources-and-data-sources.md#data-sources)).
+- The identifier uses the **project number**, which is why the configuration reads it with the `google_project` data source rather than asking you for it (data sources are explained in [Resources & Data Sources](../core-language/resources-and-data-sources.md#data-sources)).
 - **`principal://…/subject/ns/NAMESPACE/sa/NAME`** is one KSA. That's what you'll grant to in almost all cases.
 - **`principalSet://…/namespace/NAMESPACE`** is every KSA in a namespace. Useful when a whole namespace belongs to one team, but broader.
 

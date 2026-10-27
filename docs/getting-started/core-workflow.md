@@ -12,7 +12,7 @@ This chapter, and everything up to the end of Part 1, doesn't touch GCP. All you
 terraform version   # v1.11 or newer
 ```
 
-The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing, can't break anything, and behave like cloud resources in every way that matters for learning the workflow. You'll switch to real GCP resources at the start of Part 2.
+The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing and can't break anything, and the workflow is exactly the one you'll use on a cloud. Where local resources behave differently, such as having fewer settings that can change in place, the chapter says so. You'll switch to real GCP resources at the start of Part 2.
 
 Everything in this chapter runs in one directory:
 
@@ -436,7 +436,7 @@ last "terraform apply" which may have affected this plan:
     }
 ```
 
-Cloud resources show drift in more detail: a hand-edited bucket label appears as `~ "tutorial" = "core-workflow" -> "hotfix-by-hand"`, and the plan offers an in-place update to put it back. You'll see that on a real bucket in [State & Drift](../state/state-basics.md).
+Cloud resources show drift in more detail: a hand-edited bucket label appears as `~ "component" = "artifacts" -> "hotfix"`, and the plan offers an in-place update to put it back. You'll see that on a real bucket in [State & Drift](../state/state-basics.md).
 
 Either way, you have two honest choices:
 

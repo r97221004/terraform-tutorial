@@ -208,7 +208,7 @@ locals {
   # Every resource either provider creates gets these labels, on top of its own.
   default_labels = {
     managed-by = "terraform"
-    tutorial   = "providers"
+    tutorial   = "google-provider"
   }
 }
 
@@ -234,7 +234,7 @@ None of the buckets in `main.tf` sets `labels`, yet the plan shows them labeled:
       + effective_labels            = {
           + "goog-terraform-provisioned" = "true"
           + "managed-by"                 = "terraform"
-          + "tutorial"                   = "providers"
+          + "tutorial"                   = "google-provider"
         }
       ...
 ```
@@ -262,7 +262,7 @@ The block without an alias is the **default** configuration. A resource uses the
 resource "google_storage_bucket" "dr" {
   provider = google.dr     # <local name>.<alias>, not a string
 
-  name     = "${var.project_id}-providers-dr"
+  name     = "${var.project_id}-gp-dr"
   location = var.dr_region
   ...
 }
@@ -317,10 +317,10 @@ Rules that keep this manageable:
 ```bash
 terraform plan    # Plan: 3 to add, 0 to change, 0 to destroy.
 terraform apply
-gcloud storage buckets list --filter="labels.tutorial=providers" --format="table(name,location)"
+gcloud storage buckets list --filter="labels.tutorial=google-provider" --format="table(name,location)"
 ```
 
-All three buckets show up with the `tutorial=providers` label, even though none of them sets it.
+All three buckets show up with the `tutorial=google-provider` label, even though none of them sets it.
 
 ## Checkpoint
 

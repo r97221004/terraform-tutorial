@@ -1,6 +1,6 @@
 # Uses the default google provider -> var.region.
 resource "google_storage_bucket" "primary" {
-  name     = "${var.project_id}-providers-primary"
+  name     = "${var.project_id}-gp-primary"
   location = var.region
 
   uniform_bucket_level_access = true
@@ -12,7 +12,7 @@ resource "google_storage_bucket" "primary" {
 resource "google_storage_bucket" "dr" {
   provider = google.dr
 
-  name     = "${var.project_id}-providers-dr"
+  name     = "${var.project_id}-gp-dr"
   location = var.dr_region
 
   uniform_bucket_level_access = true
@@ -25,7 +25,7 @@ resource "google_storage_bucket" "dr" {
 resource "google_storage_bucket" "beta" {
   provider = google-beta
 
-  name     = "${var.project_id}-providers-beta"
+  name     = "${var.project_id}-gp-beta"
   location = var.region
 
   uniform_bucket_level_access = true

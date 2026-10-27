@@ -41,3 +41,6 @@ backend.hcl
 *-key.json
 credentials.json
 gha-creds-*.json
+
+# Local reference material, e.g. course PDFs, never published
+/*.pdf

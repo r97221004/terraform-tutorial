@@ -2,7 +2,7 @@ locals {
   # Every resource either provider creates gets these labels, on top of its own.
   default_labels = {
     managed-by = "terraform"
-    tutorial   = "providers"
+    tutorial   = "google-provider"
   }
 }
 

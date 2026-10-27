@@ -12,7 +12,8 @@ Most of this guide costs nothing or cents. Part 5 and the capstone run a GKE clu
 
 | Part | Resources | Cost while it exists |
 |---|---|---|
-| Getting Started, Part 1, Part 2 | buckets with a few small objects, state files | effectively $0 (fractions of a cent per month) |
+| Getting Started, Part 1 | local files and generated values on your own machine | $0: nothing runs in the cloud |
+| Part 2 | buckets with a few small objects, state files | effectively $0 (fractions of a cent per month) |
 | Part 3: APIs, IAM, secrets | API enablement, service accounts, IAM, secrets | $0; a handful of secret versions is within the free tier |
 | Part 3/4: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
 | Part 5: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
