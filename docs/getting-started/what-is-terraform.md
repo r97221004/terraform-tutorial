@@ -1,6 +1,6 @@
 # What is Terraform?
 
-> Infrastructure as Code, declarative vs. imperative, and where Terraform fits next to gcloud, Ansible, and Helm.
+> Infrastructure as Code, declarative vs. imperative, the three kinds of IaC tool, and where Terraform fits among them.
 
 ---
 
@@ -100,13 +100,70 @@ That's why teams run `plan` on a schedule in CI to detect drift (see [CI/CD](../
 
 ## Where Terraform fits
 
-Terraform is great at creating and wiring up **cloud resources**. It's not the best tool for everything, and most real platforms combine several:
+### Three kinds of IaC tool
+
+"Infrastructure as Code" covers tools that solve different problems. They fall into three broad categories:
+
+| Category | What it does | Examples | In an AI platform |
+|---|---|---|---|
+| **Provisioning** | Creates and wires up the infrastructure itself: networks, clusters, buckets, IAM | **Terraform**, OpenTofu, Pulumi, AWS CloudFormation | VPC, GKE cluster, GPU node pool, model bucket |
+| **Server templating** | Builds an image with the software already baked in, so every machine or container starts identical | Docker, Packer, Vagrant (local dev VMs) | The vLLM container image; a VM image with GPU drivers preinstalled |
+| **Configuration management** | Installs and configures software on machines that already exist, and keeps them that way | Ansible, Puppet, SaltStack, Chef | Packages and drivers on a bare-metal GPU box |
+
+They're layers, not rivals. A templating tool builds the image, a provisioning tool creates the machines or cluster that run it, and configuration management handles whatever still has to change on a running machine:
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    tpl["📦 Server templating<br/>Docker · Packer"]
+    img[("🖼️ image<br/>container or VM")]
+    prov["🏗️ Provisioning<br/>Terraform"]
+    infra["☁️ GKE cluster · VMs<br/>network · IAM"]
+    cfg["🔧 Configuration mgmt<br/>Ansible"]
+
+    tpl -->|"builds"| img
+    prov -->|"creates"| infra
+    img -->|"runs on"| infra
+    cfg -. "changes VMs in place" .-> infra
+
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    class prov eng
+    class img,infra tgt
+    class tpl,cfg ctrl
+```
+
+The boundaries blur: Ansible has modules that create cloud resources, and Terraform can pass a startup script to a VM. The categories describe what each tool is *best* at. One difference matters when they overlap: Terraform keeps state, so deleting a resource from your code deletes it from the cloud. Ansible works from an inventory and has no record of what it created, so removing a task from a playbook leaves the resource behind.
+
+On AWS, CloudFormation fills the provisioning role but works only with AWS. On GCP, the managed equivalent, [Infrastructure Manager](https://cloud.google.com/infrastructure-manager/docs/overview), runs Terraform itself, so what you learn here carries over.
+
+### Mutable vs. immutable infrastructure
+
+The categories also reflect two ways of changing a running system:
+
+- **Mutable**: update servers in place. Configuration management connects to each machine, or runs an agent on it, and upgrades the driver. It's quick, but each run can leave machines slightly different, especially when one fails halfway, and over time servers become "snowflakes" that nobody can rebuild exactly.
+- **Immutable**: never modify, replace. Build a new image with the new driver, then let Terraform (or a Kubernetes rollout) swap the old machines for new ones. Every machine matches the image, and rolling back means going back to the previous image.
+
+GKE node pools and containers push you toward the immutable approach: you change the node image or the container tag, and nodes or Pods are replaced rather than patched. That's why this guide uses Terraform and container images, and doesn't need a configuration management tool. Even GPU drivers aren't installed by a tool you run: GKE installs them on each new GPU node ([GPU Node Pools](../ai-infra/gpu-node-pools.md#drivers-let-gke-install-them)).
+
+### The rest of the toolchain
+
+Most real platforms combine IaC with a few other tools:
 
 | Tool | Best at | Example in an AI platform |
 |---|---|---|
-| **Terraform** | Provisioning cloud resources and the dependencies between them | VPC, GKE cluster, GPU node pool, IAM, GCS buckets |
 | **gcloud / Console** | One-off inspection and debugging | `gcloud container clusters list`, checking quotas |
-| **Ansible** | Configuring software *inside* machines | Installing packages on a bare-metal GPU box |
 | **Helm / kubectl** | Deploying apps *onto* Kubernetes | The vLLM Deployment, Prometheus |
 | **Argo CD / Flux** | Continuously syncing Kubernetes apps from Git | Keeping model-serving releases in sync |
 
@@ -128,6 +185,7 @@ Answer before expanding the solution:
 1. Someone deletes a Terraform-managed bucket in the Console. When will Terraform notice, and will it recreate the bucket automatically?
 2. Choose the best primary tool for each job: create a VPC, install packages inside a VM, deploy a fast-changing Kubernetes application.
 3. Explain why state is neither a cloud backup nor a continuously running controller.
+4. Fifty GPU VMs need a new driver version. Describe the mutable and the immutable way to roll it out, and name a tool for each step.
 
 <details>
 <summary>Answer</summary>
@@ -135,6 +193,7 @@ Answer before expanding the solution:
 1. Terraform notices on the next refresh-backed operation such as `plan`. It does nothing until someone runs Terraform; an approved `apply` can recreate the bucket.
 2. Terraform for the VPC, a configuration tool such as Ansible for packages inside a VM, and Helm or GitOps tooling for the Kubernetes application.
 3. State maps configuration addresses to remote objects and caches known attributes. It doesn't contain the bucket's data, and Terraform exits after each command instead of continuously reconciling the cloud.
+4. Mutable: a configuration management tool such as Ansible upgrades the driver on each running VM. Immutable: build a new VM image with Packer, point the Terraform configuration at it, and let `apply` replace the VMs. The immutable way leaves every VM identical to the image and makes rollback a matter of switching back to the previous image.
 
 </details>
 
@@ -142,6 +201,7 @@ Answer before expanding the solution:
 
 - **Change infrastructure through code only.** Every change made by hand in the Console becomes drift that someone has to discover later.
 - **Always read the plan.** Look closely at anything marked `destroy` or `must be replaced` before you approve it.
+- **Prefer replacing to patching.** Bake software into images and let Terraform or a rollout replace machines, rather than changing them in place.
 - **Keep Terraform for the platform, and use Kubernetes tooling for the apps.** Mixing fast-changing app releases into infrastructure code slows both down.
 - **Treat state as critical data.** It maps your code to real resources and can contain secrets. You'll move it to a locked, versioned GCS bucket in [Remote Backend on GCS](../state/remote-backend.md).
 
