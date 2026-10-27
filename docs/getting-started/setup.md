@@ -19,21 +19,33 @@ Commands assume Ubuntu, Debian, or WSL2. On macOS, follow the linked official in
 Install from HashiCorp's apt repository rather than a random binary. That way `apt upgrade` keeps it current, and the package is signature-checked:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y gnupg software-properties-common curl
+# 1. Install the tools the next steps need
+sudo apt-get update
+sudo apt-get install -y gnupg software-properties-common curl
+
+# 2. Download HashiCorp's GPG key, used to verify the packages
 curl -fsSL https://apt.releases.hashicorp.com/gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" \
+
+# 3. Add HashiCorp's official apt repository
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(. /etc/os-release && echo "$VERSION_CODENAME") main" \
   | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update && sudo apt-get install -y terraform
+
+# 4. Refresh the package list so apt sees the new repository
+sudo apt-get update
+
+# 5. Install Terraform
+sudo apt-get install -y terraform
+
+# 6. Check the version
+terraform version   # Terraform v1.11.0 or newer
 ```
 
 On macOS: `brew tap hashicorp/tap && brew install hashicorp/tap/terraform`. Other platforms: [Install Terraform](https://developer.hashicorp.com/terraform/install).
 
-Check it, and turn on tab completion for subcommands:
+Optionally, turn on tab completion for subcommands:
 
 ```bash
-terraform version                 # Terraform v1.11.0 or newer
 terraform -install-autocomplete   # then open a new shell
 ```
 
@@ -44,19 +56,29 @@ terraform -install-autocomplete   # then open a new shell
 Terraform doesn't need gcloud to run, but you'll use gcloud to log in, create the project, and check what Terraform built.
 
 ```bash
+# 1. Install the tools the next steps need
+sudo apt-get update
 sudo apt-get install -y apt-transport-https ca-certificates gnupg curl
+
+# 2. Download Google Cloud's GPG key, used to verify the packages
 curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+
+# 3. Add Google Cloud's official apt repository
 echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" \
   | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
-sudo apt-get update && sudo apt-get install -y google-cloud-cli
+
+# 4. Refresh the package list so apt sees the new repository
+sudo apt-get update
+
+# 5. Install the gcloud CLI
+sudo apt-get install -y google-cloud-cli
+
+# 6. Check the version
+gcloud version
 ```
 
 On macOS and other platforms: [Install the gcloud CLI](https://cloud.google.com/sdk/docs/install).
-
-```bash
-gcloud version
-```
 
 Part 5 also needs `kubectl` and the GKE auth plugin. You'll install those when you get there.
 
