@@ -83,7 +83,7 @@ flowchart TB
 
 - **Configuration** (`*.tf` files): the desired state, written by you.
 - **State** (`terraform.tfstate`): Terraform's record of which real objects it manages, and their IDs. It's how Terraform knows that `google_storage_bucket.models` in your code *is* `gs://my-models-bucket` in GCP. [State & Drift](../state/state-basics.md) covers it in depth.
-- **Providers**: plugins that translate HCL into API calls. The `google` provider talks to GCP, the `kubernetes` provider talks to a cluster, and so on. Terraform itself knows nothing about any cloud.
+- **Providers**: plugins that translate HCL into API calls. The `google` provider talks to GCP, the `kubernetes` provider talks to a cluster, and so on. Terraform itself knows nothing about any cloud. `terraform init` downloads them into the directory before the first `plan`; [Core Workflow](core-workflow.md#1-terraform-init-prepare-the-directory) shows it.
 
 `plan` is the heart of the workflow. You always see the diff before anything changes, and a `-/+ destroy and then create replacement` in that diff is your warning that something will be deleted.
 
