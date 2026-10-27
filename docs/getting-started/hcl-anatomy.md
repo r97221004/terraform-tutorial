@@ -226,6 +226,8 @@ digraph G {
 }
 ```
 
+If you have [Graphviz](https://graphviz.org) installed, turn it into a picture with `terraform graph | dot -Tsvg > graph.svg`. For big configurations the picture gets crowded fast, but for small ones it's a quick way to check what depends on what.
+
 This is why **order in the file doesn't matter**. You could put the file above the name and nothing would change. [Meta-Arguments](../core-language/meta-arguments.md) covers `depends_on`, for the rare dependency that a reference can't express.
 
 ### String templates and heredocs
@@ -261,6 +263,10 @@ Every value has a type. You'll declare these on variables in [Variables, Locals 
 | `set(...)` | like a list, but unordered and without duplicates |
 | `map(...)` | `{ team = "ml", env = "dev" }` (keys are strings, values share one type) |
 | `object({...})` | `{ name = "l4-pool", gpus = 1 }` (fixed keys, each with its own type) |
+| `tuple([...])` | `["nvidia-l4", 1, true]` for `tuple([string, number, bool])` (fixed length, each position with its own type) |
+| `any` | any value; Terraform works out the actual type from what's passed in |
+
+`tuple` is to `list` what `object` is to `map`: a fixed shape instead of "many of one type". It's rare in hand-written variables; an `object` with named fields is easier to read. `any` skips type checking for a variable, so mistakes surface later and less clearly. Prefer a real type, and keep `any` for the occasional module input that genuinely accepts different shapes.
 
 Two details trip people up:
 

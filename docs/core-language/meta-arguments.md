@@ -1,6 +1,6 @@
 # Meta-Arguments
 
-> count, for_each, depends_on, and lifecycle.
+> count, for_each, depends_on, and lifecycle, plus forced replacement and provisioners.
 
 ---
 
@@ -430,6 +430,111 @@ NEARLINE, so every deletion would pay an early-deletion fee.
 
 A **postcondition** runs after the resource is created or read, and can check `self`, the resource's own attributes. Use it to assert something about what was actually created or read, for example that a data source found an image of the expected architecture on GCP.
 
+## Forcing a replacement: `-replace`
+
+Sometimes an object is broken in a way Terraform can't see: a VM whose disk got corrupted, a node that's unhealthy, a file someone mangled in a way the provider doesn't check. The configuration hasn't changed, so the plan says `No changes`. To rebuild just that one object, ask for it. Try it once the example is applied ([Apply it](#apply-it) below):
+
+```bash
+terraform plan -replace='local_file.model_card["qwen2-5-7b"]'
+```
+
+```
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # local_file.model_card["qwen2-5-7b"] will be replaced, as requested
+-/+ resource "local_file" "model_card" {
+      ~ id                   = "28bc0d275fa6a939c7e66268e82b406fa6f9fd3e" -> (known after apply)
+        # (4 unchanged attributes hidden)
+    }
+
+Plan: 1 to add, 0 to change, 1 to destroy.
+```
+
+- Quote the address in single quotes; `[` and `"` mean something to your shell.
+- `-replace` works on `plan` and `apply`, and you can repeat it for several addresses. It's a one-off: nothing is saved in the configuration. For "replace this whenever that changes", use `replace_triggered_by` instead.
+- Older guides use `terraform taint <address>`, which marks the resource in state so the next plan replaces it (`is tainted, so must be replaced`), and `terraform untaint` to undo that. The commands still exist, but HashiCorp recommends `-replace`: it shows you the plan before anything changes, while `taint` edits state immediately.
+
+Terraform also taints a resource **by itself** when its creation fails partway, as the next section shows.
+
+## Provisioners: a last resort
+
+A **provisioner** runs a command as part of creating or destroying a resource. `local-exec` runs on the machine running Terraform; `remote-exec` runs on the new server over SSH. Here's `local-exec` on a `terraform_data` resource, a built-in resource that stores a value and creates nothing else. The snippets in this section aren't part of the example; to try them, put them in a `main.tf` in an empty scratch directory and run `terraform init`:
+
+```hcl
+resource "random_pet" "server" {}
+
+resource "terraform_data" "announce" {
+  input = random_pet.server.id
+
+  # Runs once, on the machine running Terraform, right after creation.
+  provisioner "local-exec" {
+    command = "echo 'Server ${self.input} is ready' >> deploy.log"
+  }
+
+  # Runs when the resource is destroyed.
+  provisioner "local-exec" {
+    when    = destroy
+    command = "echo 'Server ${self.input} is gone' >> deploy.log"
+  }
+}
+```
+
+```
+terraform_data.announce: Creating...
+terraform_data.announce: Provisioning with 'local-exec'...
+terraform_data.announce (local-exec): Executing: ["/bin/sh" "-c" "echo 'Server mutual-treefrog is ready' >> deploy.log"]
+terraform_data.announce: Creation complete after 0s [id=e0e25595-938f-e579-2a71-42b3af81b14d]
+```
+
+Inside a provisioner, `self` is the resource it belongs to. Three behaviors catch people out:
+
+- **Creation-time provisioners run once.** Change the `command` and plan again: `No changes`. Terraform doesn't track what a provisioner did, so it has no reason to run it again. To re-run it, replace the resource with `-replace`.
+- **A failed provisioner taints the resource.** If the command exits non-zero, the apply fails, but the resource has already been created, so it stays in state marked as tainted. Add this to the scratch `main.tf` and apply:
+
+  ```hcl
+  resource "terraform_data" "smoke_test" {
+    provisioner "local-exec" {
+      command = "test -f model.bin"   # fails: the file doesn't exist
+    }
+  }
+  ```
+
+  ```
+  Error: local-exec provisioner error
+
+    with terraform_data.smoke_test,
+    on main.tf line 19, in resource "terraform_data" "smoke_test":
+    19:   provisioner "local-exec" {
+
+  Error running command 'test -f model.bin': exit status 1. Output:
+  ```
+
+  ```
+    # terraform_data.smoke_test is tainted, so must be replaced
+  Plan: 1 to add, 0 to change, 1 to destroy.
+  ```
+
+  Add `on_failure = continue` to the provisioner only if a failure really doesn't matter.
+- **Destroy-time provisioners** (`when = destroy`) run before the resource is deleted, and can refer only to `self` (plus `count.index` or `each.key`). After `terraform destroy`, `deploy.log` holds both lines:
+
+  ```
+  Server mutual-treefrog is ready
+  Server mutual-treefrog is gone
+  ```
+
+Why "last resort"? Everything else in Terraform is planned, diffed, and recorded in state. A provisioner is none of those: the plan can't tell you what the script will do, Terraform can't detect drift in what it did, and a failure leaves things half-done. HashiCorp's own documentation says to use them only when nothing else works. On GCP there almost always is something else:
+
+| Instead of a provisioner that… | Use |
+|---|---|
+| installs software on a new VM | a startup script in the instance's metadata, or a VM image built with Packer ([server templating](../getting-started/what-is-terraform.md#three-kinds-of-iac-tool)) |
+| runs an app on a cluster | a container image and a Kubernetes deployment ([Part 5](../ai-infra/kubernetes-and-helm.md)) |
+| configures a long-lived server | a configuration management tool such as Ansible |
+| calls an API Terraform has no resource for | look for a provider or resource first; the Registry is large |
+
 ## Apply it
 
 ```bash
@@ -471,6 +576,8 @@ terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # on
 1. A list of named environments may be reordered later. Should repeated resources use `count` or `for_each`, and why?
 2. A resource already references another resource's ID. Should you also add `depends_on`?
 3. A plan shows an unexpected destroy, but `prevent_destroy` blocks it. Is the incident solved? What should you investigate?
+4. One VM is unhealthy, but its configuration hasn't changed and the plan shows no changes. How do you rebuild only that VM, and why prefer this over `terraform taint`?
+5. A `local-exec` provisioner fails during `apply`. What state is the resource left in, and what will the next plan do?
 
 <details>
 <summary>Answer</summary>
@@ -478,6 +585,8 @@ terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # on
 1. Prefer `for_each` with stable keys. Reordering a `count` list changes numeric addresses and can update or replace the wrong instances.
 2. Usually no. The reference already creates the dependency; redundant explicit dependencies make plans more conservative and values more likely to remain unknown.
 3. No. The guard prevented damage, but the plan still reveals a configuration, address, or immutable-attribute problem. Find the proposed cause instead of removing the guard reflexively.
+4. `terraform apply -replace='<address>'`. It shows the replacement in a plan before anything happens; `taint` edits state immediately, without a plan to review.
+5. The resource exists but is marked tainted in state. The next plan replaces it (`is tainted, so must be replaced`), which runs the provisioner again.
 
 </details>
 
@@ -491,6 +600,8 @@ terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # on
 - **`prevent_destroy` on anything holding data you can't recreate**, plus no `force_destroy` on those buckets.
 - **Comment every `ignore_changes`** with which system owns the attribute.
 - **Use preconditions for rules that span several values** and would otherwise fail late or cost money.
+- **Rebuild a single broken object with `-replace`**, not by editing code or using `taint`.
+- **Treat provisioners as a last resort.** Prefer startup scripts, images, or a real provider resource; if you must use one, keep it small and idempotent.
 
 ## Clean up
 

@@ -61,6 +61,18 @@ flowchart LR
 
 Each provider has its own documentation on the Registry, with a page per resource. [hashicorp/random](https://registry.terraform.io/providers/hashicorp/random/latest/docs) documents `random_pet`; from Part 2 on, [hashicorp/google](https://registry.terraform.io/providers/hashicorp/google/latest/docs) is the page you'll have open most.
 
+### Who publishes a provider
+
+The Registry hosts thousands of providers, and they aren't equally trustworthy. Each one's page shows a badge for its tier:
+
+| Tier | Published by | Examples |
+|---|---|---|
+| **Official** | HashiCorp | `hashicorp/random`, `hashicorp/local`, `hashicorp/google` |
+| **Partner** | the company that makes the platform, verified by HashiCorp | providers for monitoring, database, and DNS services, published by those vendors |
+| **Community** | anyone | small or niche integrations, maintained by individuals |
+
+The namespace in `source` (`hashicorp/` in `hashicorp/random`) tells you who publishes it. A community provider can be perfectly good, but before you depend on one, check what you'd check for any dependency: who maintains it, how recently it was released, and whether its issues get answers. The lock file's checksums protect you from a tampered download; they can't tell you whether the publisher is someone you should trust.
+
 ## Declaring providers: `required_providers`
 
 [`versions.tf`](../../examples/core-language/providers/versions.tf) declares which providers this configuration needs:
@@ -111,7 +123,15 @@ Providers required by configuration:
 | `>= 3.0` | 3.0 and anything newer, **including 4.x, 5.x** | in reusable modules, to state a minimum |
 | `~> 3.9` | `>= 3.9` and `< 4.0`: 3.9 or any later 3.x | in root modules: get fixes and features, never a new major |
 | `~> 3.6.0` | `>= 3.6.0` and `< 3.7.0`: patch releases only | when you need to hold a specific minor version |
-| `>= 3.5, < 3.8` | a custom range | to avoid one known-bad release |
+| `>= 3.5, < 3.8` | a custom range | to stay within versions you've tested |
+| `>= 3.5, != 3.9.1` | 3.5 or newer, except 3.9.1 | to skip one known-bad release |
+
+Combine conditions with commas; a version must satisfy all of them. With `>= 3.5, != 3.9.1`, `init` skips the excluded release and picks the newest of the rest:
+
+```
+- Finding hashicorp/random versions matching ">= 3.5.0, != 3.9.1"...
+- Installing hashicorp/random v3.9.0...
+```
 
 `~>` is the "pessimistic constraint operator": it allows only the **rightmost** version component to increase. `~> 3.9` lets the `9` go up, so any 3.x from 3.9; `~> 3.6.0` lets only the patch go up.
 

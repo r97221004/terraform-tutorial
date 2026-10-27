@@ -129,7 +129,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP checks com
 - [**Resources & Data Sources**](docs/core-language/resources-and-data-sources.md): manage vs. read.
 - [**Variables, Locals & Outputs**](docs/core-language/variables-and-outputs.md): inputs, computed values, and results.
 - [**Expressions & Functions**](docs/core-language/expressions.md): `for`, conditionals, and `terraform console`.
-- [**Meta-Arguments**](docs/core-language/meta-arguments.md): `count`, `for_each`, `depends_on`, and `lifecycle`.
+- [**Meta-Arguments**](docs/core-language/meta-arguments.md): `count`, `for_each`, `depends_on`, `lifecycle`, `-replace`, and provisioners.
 
 **Part 2 — GCP & State**
 
