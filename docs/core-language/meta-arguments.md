@@ -4,7 +4,7 @@
 
 ---
 
-Arguments like `name` and `location` are defined by the provider and passed to GCP. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. You've already used one, `provider`, in [Providers](providers.md). This chapter covers the other four.
+Arguments like `name` and `location` are defined by the provider and passed to GCP. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. A fifth, `provider`, picks which provider configuration a resource uses; you'll meet it in [Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias). This chapter covers the other four.
 
 | Meta-argument | What it controls |
 |---|---|
@@ -12,7 +12,7 @@ Arguments like `name` and `location` are defined by the provider and passed to G
 | `for_each` | make one copy per element of a map or set |
 | `depends_on` | add an ordering that references can't express |
 | `lifecycle` | how changes are applied: guards, ignored attributes, replacement behavior, pre/postconditions |
-| `provider` | which provider configuration to use ([Providers](providers.md#two-configurations-of-one-provider-alias)) |
+| `provider` | which provider configuration to use ([Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias)) |
 
 ## Before you start
 
@@ -491,4 +491,4 @@ That's the end of Part 1. You can now read and write any Terraform configuration
 
 ---
 
-[← Expressions & Functions](expressions.md) · [↑ Contents](../../README.md) · [State & Drift →](../state/state-basics.md)
+[← Expressions & Functions](expressions.md) · [↑ Contents](../../README.md) · [Connecting to GCP →](../state/google-provider.md)

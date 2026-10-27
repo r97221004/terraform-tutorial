@@ -1,34 +1,12 @@
-# Uses the default google provider -> var.region.
-resource "google_storage_bucket" "primary" {
-  name     = "${var.project_id}-providers-primary"
-  location = var.region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
+# Each resource type starts with the local name of the provider that manages it:
+# random_pet comes from `random`, local_file from `local`.
+resource "random_pet" "server" {
+  length = 2
 }
 
-# Uses the aliased provider -> var.dr_region.
-resource "google_storage_bucket" "dr" {
-  provider = google.dr
-
-  name     = "${var.project_id}-providers-dr"
-  location = var.dr_region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
-}
-
-# Uses google-beta. This resource exists in both providers; switching
-# `provider` is all it takes. Do this only for a feature that needs it.
-resource "google_storage_bucket" "beta" {
-  provider = google-beta
-
-  name     = "${var.project_id}-providers-beta"
-  location = var.region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
+resource "local_file" "server" {
+  filename             = "${path.module}/out/server.txt"
+  content              = "${random_pet.server.id}\n"
+  file_permission      = "0644"
+  directory_permission = "0755"
 }

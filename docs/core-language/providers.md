@@ -1,10 +1,10 @@
 # Providers & Version Pinning
 
-> google vs. google-beta, version constraints, and the dependency lock file.
+> What a provider is, version constraints, and the dependency lock file.
 
 ---
 
-Terraform itself knows nothing about GCP, Kubernetes, or any other platform. Everything it can manage comes from a **provider**: a plugin that translates HCL into API calls for one platform. This chapter covers how to choose providers, pin their versions, configure them, and run more than one configuration of the same provider at once.
+Terraform itself knows nothing about GCP, Kubernetes, files on your disk, or any other platform. Everything it can manage comes from a **provider**: a plugin that translates HCL into calls to one platform. This chapter covers how to declare providers, pin their versions, and upgrade them on purpose.
 
 ## Before you start
 
@@ -13,7 +13,7 @@ cd examples/core-language/providers
 terraform init
 ```
 
-This example creates three small buckets: one in your default region, one in a second "disaster recovery" region, and one through the `google-beta` provider.
+This example uses the two providers you already know from [Getting Started](../getting-started/core-workflow.md): `random` generates a name, and `local` writes it to a file. The resources are deliberately boring; the interesting part is `versions.tf` and the lock file.
 
 ## What a provider is
 
@@ -35,30 +35,31 @@ flowchart LR
 
     subgraph plugins["🔌 Providers"]
         direction TB
+        random["random"]
+        local["local"]
         google["google"]
-        beta["google-beta"]
     end
 
-    gcp["☁️ GCP APIs"]
+    targets["💻 random values · local files<br/>☁️ GCP APIs"]
 
     reg -. "terraform init<br/>downloads" .-> plugins
     core <==>|"RPC"| plugins
-    plugins -->|"HTTPS"| gcp
+    plugins --> targets
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
     classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
     class core eng
-    class google,beta ctrl
-    class reg,gcp tgt
+    class random,local,google ctrl
+    class reg,targets tgt
     style plugins fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
 ```
 
-- **Terraform core** reads your configuration, builds the dependency graph, computes plans, and manages state. It's the same binary whatever cloud you use.
-- **A provider** is a separate executable that core starts and talks to over RPC. It knows the schema of every resource it offers (which arguments exist, which force replacement) and how to call the platform's API. `terraform init` downloads it from the [Terraform Registry](https://registry.terraform.io) into `.terraform/`.
-- **Providers are versioned and released independently of Terraform.** The google provider ships a new version roughly every week. That's why pinning matters.
+- **Terraform core** reads your configuration, builds the dependency graph, computes plans, and manages state. It's the same binary whatever you manage.
+- **A provider** is a separate executable that core starts and talks to over RPC. It knows the schema of every resource it offers (which arguments exist, which force replacement) and how to make the change: write a file, generate a value, or call a cloud API. `terraform init` downloads it from the [Terraform Registry](https://registry.terraform.io) into `.terraform/`.
+- **Providers are versioned and released independently of Terraform.** Busy providers ship often; the google provider releases roughly every week. That's why pinning matters.
 
-Each provider has its own documentation on the Registry, with a page per resource. [hashicorp/google](https://registry.terraform.io/providers/hashicorp/google/latest/docs) is the page you'll have open most while working through this guide.
+Each provider has its own documentation on the Registry, with a page per resource. [hashicorp/random](https://registry.terraform.io/providers/hashicorp/random/latest/docs) documents `random_pet`; from Part 2 on, [hashicorp/google](https://registry.terraform.io/providers/hashicorp/google/latest/docs) is the page you'll have open most.
 
 ## Declaring providers: `required_providers`
 
@@ -69,13 +70,13 @@ terraform {
   required_version = ">= 1.10"
 
   required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 8.0"
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9"
     }
-    google-beta = {
-      source  = "hashicorp/google-beta"
-      version = "~> 8.0"
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.9"
     }
   }
 }
@@ -83,8 +84,8 @@ terraform {
 
 Each entry has three parts:
 
-- **The local name** (`google`, `google-beta`): what you call the provider inside this configuration. It's also the prefix of its resource types: `google_storage_bucket` belongs to the provider named `google`.
-- **`source`**: where to download it. `hashicorp/google` is short for `registry.terraform.io/hashicorp/google`, meaning the `google` provider published by `hashicorp` on the public Registry.
+- **The local name** (`random`, `local`): what you call the provider inside this configuration. It's also the prefix of its resource types: `random_pet` belongs to the provider named `random`, `local_file` to `local`.
+- **`source`**: where to download it. `hashicorp/random` is short for `registry.terraform.io/hashicorp/random`, meaning the `random` provider published by `hashicorp` on the public Registry.
 - **`version`**: which versions are acceptable. That's the next section.
 
 Always declare every provider here, even ones that Terraform could guess from resource names. It's the one place a reader can see every dependency and its version range.
@@ -98,49 +99,49 @@ terraform providers
 ```
 Providers required by configuration:
 .
-├── provider[registry.terraform.io/hashicorp/google-beta] ~> 8.0
-└── provider[registry.terraform.io/hashicorp/google] ~> 8.0
+├── provider[registry.terraform.io/hashicorp/random] ~> 3.9
+└── provider[registry.terraform.io/hashicorp/local] ~> 2.9
 ```
 
 ## Version constraints
 
 | Constraint | Allows | Use it when |
 |---|---|---|
-| `= 8.7.0` (or just `8.7.0`) | exactly 8.7.0 | almost never; the lock file already pins exactly |
-| `>= 8.0` | 8.0 and anything newer, **including 9.x, 10.x** | in reusable modules, to state a minimum |
-| `~> 8.0` | `>= 8.0` and `< 9.0`: any 8.x | in root modules: get fixes and features, never a new major |
-| `~> 8.7.0` | `>= 8.7.0` and `< 8.8.0`: patch releases only | when you need to hold a specific minor version |
-| `>= 8.3, < 8.10` | a custom range | to avoid one known-bad release |
+| `= 3.9.1` (or just `3.9.1`) | exactly 3.9.1 | almost never; the lock file already pins exactly |
+| `>= 3.0` | 3.0 and anything newer, **including 4.x, 5.x** | in reusable modules, to state a minimum |
+| `~> 3.9` | `>= 3.9` and `< 4.0`: 3.9 or any later 3.x | in root modules: get fixes and features, never a new major |
+| `~> 3.6.0` | `>= 3.6.0` and `< 3.7.0`: patch releases only | when you need to hold a specific minor version |
+| `>= 3.5, < 3.8` | a custom range | to avoid one known-bad release |
 
-`~>` is the "pessimistic constraint operator": it allows only the **rightmost** version component to increase. `~> 8.0` lets the `0` go up, so any 8.x; `~> 8.7.0` lets only the patch go up.
+`~>` is the "pessimistic constraint operator": it allows only the **rightmost** version component to increase. `~> 3.9` lets the `9` go up, so any 3.x from 3.9; `~> 3.6.0` lets only the patch go up.
 
-Why not allow everything? **A major version is allowed to break you.** Each google provider major version removes deprecated arguments and changes defaults, and each comes with an [upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade) listing the changes. Upgrading to a new major version should be a deliberate pull request, never a surprise from `terraform init`.
+Why not allow everything? **A major version is allowed to break you.** Major versions remove deprecated arguments and change defaults, and well-maintained providers publish an upgrade guide for each one. The google provider's [version 8 upgrade guide](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/version_8_upgrade) is a typical example. Upgrading to a new major version should be a deliberate pull request, never a surprise from `terraform init`.
 
-> 📌 **Root modules vs. reusable modules.** In a root module (a directory you run `terraform apply` in), use `~> 8.0` and commit the lock file. In a reusable module ([Writing Modules](../modules/writing-modules.md)), declare only a minimum such as `>= 8.0`. The root module that calls it chooses the exact version, and an over-tight constraint in a module makes it impossible to combine with others.
+> 📌 **Root modules vs. reusable modules.** In a root module (a directory you run `terraform apply` in), use `~> <major>.<minor>` and commit the lock file. In a reusable module ([Writing Modules](../modules/writing-modules.md)), declare only a minimum such as `>= 3.0`. The root module that calls it chooses the exact version, and an over-tight constraint in a module makes it impossible to combine with others.
 
 ## The dependency lock file
 
-A constraint like `~> 8.0` allows many versions. The **lock file**, `.terraform.lock.hcl`, records the **exact one** that was chosen:
+A constraint like `~> 3.9` allows many versions. The **lock file**, `.terraform.lock.hcl`, records the **exact one** that was chosen:
 
 ```hcl
-provider "registry.terraform.io/hashicorp/google" {
-  version     = "8.7.0"
-  constraints = "~> 8.0"
+provider "registry.terraform.io/hashicorp/random" {
+  version     = "3.9.1"
+  constraints = "~> 3.9"
   hashes = [
-    "h1:r0evOKSNhYYj04qb6VCTVtm7/uWr67jMZ2TsgLubk6o=",
-    "zh:087771b1c22126084ec1ac26272f7e0bce1030bedd9d692b6eef38e6baf5db2e",
+    "h1:g40qr7yDmIpaur4SsK5BcOda3HSo1RJ6zHVMqN4EJ+0=",
+    "zh:05f4734c1f0be840b711b3eff259ebc5fca436784c728955b1678078466f48d7",
     ...
   ]
 }
 ```
 
-- **`version`**: the exact version selected. Every later `terraform init` installs this version, even after newer 8.x releases come out.
+- **`version`**: the exact version selected. Every later `terraform init` installs this version, even after newer 3.x releases come out.
 - **`constraints`**: the constraint that was in effect when it was selected.
 - **`hashes`**: checksums of the provider package for each operating system and CPU architecture. `init` refuses to install a download that doesn't match, which protects you from a tampered or corrupted package.
 
 The Registry returns checksums for every platform, so a lock file created on Linux also works on a teammate's Mac and on a Windows CI runner. You'll only need `terraform providers lock -platform=...` to add platforms by hand if you install providers from a private mirror.
 
-**Commit the lock file.** Without it, your laptop and CI could resolve `~> 8.0` to different versions on the same day, and the plan you reviewed isn't the plan that runs.
+**Commit the lock file.** Without it, your laptop and CI could resolve `~> 3.9` to different versions on the same day, and the plan you reviewed isn't the plan that runs.
 
 ### Upgrading a provider on purpose
 
@@ -152,181 +153,122 @@ terraform init -upgrade
 
 ```
 Initializing provider plugins...
-- Finding hashicorp/google versions matching "~> 8.0"...
-- Finding hashicorp/google-beta versions matching "~> 8.0"...
-- Installing hashicorp/google v8.7.0...
-- Installed hashicorp/google v8.7.0 (signed by HashiCorp)
-- Installing hashicorp/google-beta v8.7.0...
-- Installed hashicorp/google-beta v8.7.0 (signed by HashiCorp)
+- Finding hashicorp/local versions matching "~> 2.9"...
+- Finding hashicorp/random versions matching "~> 3.9"...
+- Using previously-installed hashicorp/random v3.9.1
+- Using previously-installed hashicorp/local v2.9.1
 ```
 
-`-upgrade` ignores the locked versions, picks the newest version allowed by each constraint, and rewrites the lock file. Here 8.7.0 was already the newest 8.x, so nothing changed.
+`-upgrade` ignores the locked versions, picks the newest version allowed by each constraint, and rewrites the lock file. Here 3.9.1 and 2.9.1 were already the newest allowed, so nothing changed.
 
 A safe upgrade looks like this:
 
-1. Read the provider's [CHANGELOG](https://github.com/hashicorp/terraform-provider-google/blob/main/CHANGELOG.md) for the versions you're skipping.
+1. Read the provider's changelog for the versions you're skipping. Every provider links it from its Registry page.
 2. Run `terraform init -upgrade`.
 3. Run `terraform plan`. For a minor upgrade you want **`No changes.`** Any diff means the new version reads or defaults something differently, so understand it before applying.
 4. Commit the updated `.terraform.lock.hcl` on its own, in a pull request that does nothing else.
 
 ### When the constraint and the lock file disagree
 
-If you tighten a constraint so that the locked version no longer satisfies it, for example by changing `~> 8.0` to `~> 8.5.0` while 8.7.0 is locked, `init` stops and tells you what to do:
+Hold `random` to the 3.6 series: in `versions.tf`, change `~> 3.9` to `~> 3.6.0`. The locked 3.9.1 no longer satisfies the constraint, so `init` stops and tells you what to do:
+
+```bash
+terraform init
+```
 
 ```
 Error: Failed to query available provider packages
 
 Could not retrieve the list of available versions for provider
-hashicorp/google: locked provider registry.terraform.io/hashicorp/google
-8.7.0 does not match configured version constraint ~> 8.5.0; must use
+hashicorp/random: locked provider registry.terraform.io/hashicorp/random
+3.9.1 does not match configured version constraint ~> 3.6.0; must use
 terraform init -upgrade to allow selection of new versions
 ```
 
-`terraform init -upgrade` then selects 8.5.x and rewrites the lock file. Terraform never silently swaps the provider out from under you.
+Do what it says:
+
+```bash
+terraform init -upgrade
+```
+
+```
+- Finding hashicorp/random versions matching "~> 3.6.0"...
+- Installing hashicorp/random v3.6.3...
+- Installed hashicorp/random v3.6.3 (signed by HashiCorp)
+```
+
+```bash
+git diff .terraform.lock.hcl
+```
+
+```diff
+ provider "registry.terraform.io/hashicorp/random" {
+-  version     = "3.9.1"
+-  constraints = "~> 3.9"
++  version     = "3.6.3"
++  constraints = "~> 3.6.0"
+   hashes = [
+```
+
+That diff is what a reviewer sees in a provider-change pull request. Terraform never silently swaps the provider out from under you: changing versions always takes an explicit `-upgrade` and shows up in the lock file.
+
+Put it back: change the constraint to `~> 3.9` again and run `terraform init -upgrade`. The lock file returns to 3.9.1, and `git diff` shows nothing.
 
 ## Configuring a provider
 
-The `provider` block sets defaults for every resource that uses that provider. From [`providers.tf`](../../examples/core-language/providers/providers.tf):
+Some providers need settings before they can do anything: which project and region to use, which account to act as. You give them in a `provider` block:
 
 ```hcl
-locals {
-  # Every resource either provider creates gets these labels, on top of its own.
-  default_labels = {
-    managed-by = "terraform"
-    tutorial   = "providers"
-  }
-}
-
-# The default google provider: used by any google_* resource that doesn't say otherwise.
 provider "google" {
-  project        = var.project_id
-  region         = var.region
-  default_labels = local.default_labels
+  project = var.project_id
+  region  = var.region
 }
 ```
 
-- **`project`, `region`**: the defaults for resources that don't set their own. A resource can always override them, as the `dr` bucket below does with `location`.
-- **`default_labels`**: labels applied to **every** resource this provider creates that supports labels, merged with the resource's own `labels`. It's the easiest way to make sure everything is labeled with its owner, environment, or cost center.
-- **Credentials**: you don't set any. The provider finds your Application Default Credentials from [Setup](../getting-started/setup.md) automatically. Never put credentials in a provider block. [IAM & Service Accounts](../gcp-foundations/iam.md) shows the one credential-related setting you will use, `impersonate_service_account`.
+`random` and `local` need no settings at all, so this example has no `provider` block. Terraform uses an empty default configuration for them.
 
-None of the buckets in `main.tf` sets `labels`, yet the plan shows them labeled:
+Two more features build on `provider` blocks, and both only make sense with a configurable provider:
 
-```
-  # google_storage_bucket.primary will be created
-  + resource "google_storage_bucket" "primary" {
-      + effective_labels            = {
-          + "goog-terraform-provisioned" = "true"
-          + "managed-by"                 = "terraform"
-          + "tutorial"                   = "providers"
-        }
-      ...
-```
+- **`alias`** gives one provider a second configuration, such as a second region or project, and a resource opts in with `provider = google.dr`.
+- **Provider-wide defaults** such as the google provider's `default_labels` apply a setting to every resource the provider creates.
 
-## Two configurations of one provider: `alias`
-
-Sometimes one configuration needs the same provider set up two ways: two regions, two projects, or two sets of credentials. Add a second `provider` block with an **`alias`**:
-
-```hcl
-# A second configuration of the SAME provider, for another region.
-# Resources opt in with `provider = google.dr`.
-provider "google" {
-  alias          = "dr"
-  project        = var.project_id
-  region         = var.dr_region
-  default_labels = local.default_labels
-}
-```
-
-The block without an alias is the **default** configuration. A resource uses the aliased one only when it asks, with the `provider` meta-argument:
-
-```hcl
-resource "google_storage_bucket" "dr" {
-  provider = google.dr     # <local name>.<alias>, not a string
-
-  name     = "${var.project_id}-providers-dr"
-  location = var.dr_region
-  ...
-}
-```
-
-```
-Changes to Outputs:
-  + buckets = {
-      + beta    = "US-CENTRAL1"
-      + dr      = "US-EAST1"
-      + primary = "US-CENTRAL1"
-    }
-```
-
-Common uses of `alias` in GCP:
-
-- **A second project**: a shared "network host" project alongside a workload project, or a central logging project.
-- **A second region**: disaster-recovery copies, or regional resources such as Artifact Registry repositories in several places.
-- **Different credentials**: one configuration impersonating a deploy service account, another impersonating a read-only one.
-
-> 💡 For a bucket, `location` alone decides where it lives, so the alias is only demonstrating the mechanism here. It matters for resources that have no location argument of their own and take the region from the provider, and for working across projects.
-
-## `google` vs. `google-beta`
-
-GCP releases many features in **preview** before they're generally available. The google provider ships as **two providers** built from the same code:
-
-| | `google` | `google-beta` |
-|---|---|---|
-| Features | generally available (GA) only | GA **plus** preview (beta) features |
-| Stability | GA features follow normal deprecation rules | preview features can change or disappear |
-| Versions | released together, with the same version numbers | |
-| Use it | by default, for everything | only for resources or arguments that need a preview feature |
-
-A resource that needs a preview feature opts in exactly like an alias:
-
-```hcl
-resource "google_storage_bucket" "beta" {
-  provider = google-beta
-  ...
-}
-```
-
-Rules that keep this manageable:
-
-- **Default to `google`.** Switch individual resources to `google-beta` only when the docs mark an argument or resource as beta. The Registry pages say so explicitly.
-- **Configure both identically** (same project, region, `default_labels`), or the resources they manage will behave inconsistently.
-- **Pin both to the same version range.** They're released in lockstep, and mixing `google` 8.7 with `google-beta` 8.3 just causes confusion.
-- **Switching back is free.** When a feature reaches GA, change `provider = google-beta` back to the default. The resource stays the same; only the provider that manages it changes. Run `plan` to confirm there's nothing else to do.
+You'll configure the google provider, with both features, in [Connecting to GCP](../state/google-provider.md), the first chapter that creates real cloud resources.
 
 ## Apply it
 
 ```bash
-terraform plan    # Plan: 3 to add, 0 to change, 0 to destroy.
 terraform apply
-gcloud storage buckets list --filter="labels.tutorial=providers" --format="table(name,location)"
+cat out/server.txt
 ```
 
-All three buckets show up with the `tutorial=providers` label, even though none of them sets it.
+```
+cunning-hermit
+```
+
+Nothing about the resources changed in this chapter. What you practiced is the part that keeps them reproducible: the same configuration, with the same lock file, installs the same provider builds on every machine.
 
 ## Checkpoint
 
-1. Your constraint allows `8.x`, but the lock file selects `8.7.0`. Which version does a normal `terraform init` install, and how do you intentionally reconsider it?
-2. A resource must use the `google.dr` provider alias. What happens if its `provider = google.dr` line is omitted?
-3. Should every configuration declare both `google` and `google-beta` just in case?
+1. Your constraint is `~> 3.9`, and the lock file selects `3.9.1`. A month later 3.10.0 is released. Which version does a normal `terraform init` install, and how do you intentionally move to the new one?
+2. A teammate wrote `version = ">= 3.0"` in a root module and didn't commit the lock file. What can go wrong when random 4.0 is released?
+3. You change a constraint, and `init` fails with *"locked provider ... does not match configured version constraint"*. Why does Terraform refuse, and what's the fix?
 
 <details>
 <summary>Answer</summary>
 
-1. Terraform reuses `8.7.0` from the lock file. Run `terraform init -upgrade` deliberately, review the lock-file diff, and validate the resulting plan.
-2. It uses the default `google` configuration, which can place or read the resource in the wrong project or region.
-3. No. Add `google-beta` only for features that require it, and keep the stable provider as the default.
+1. Terraform keeps installing `3.9.1` from the lock file. Run `terraform init -upgrade` deliberately, review the lock-file diff, and check that `terraform plan` shows no unexpected changes.
+2. The next `init` on a fresh machine or CI runner picks 4.0, a major version that may remove arguments or change behavior. Different machines can then run different provider versions against the same state. Use `~> 3.9` in root modules and commit the lock file.
+3. The lock file records one exact version, and Terraform won't change it without being asked. Run `terraform init -upgrade` to select a version that matches the new constraint, then commit the updated lock file.
 
 </details>
 
 ## Best practices
 
 - **Declare every provider in `required_providers`** with an explicit `source` and `version`.
-- **Use `~> <major>.0` in root modules, `>= <minimum>` in reusable modules.**
+- **Use `~> <major>.<minor>` in root modules, `>= <minimum>` in reusable modules.**
 - **Commit `.terraform.lock.hcl`** and upgrade providers with `init -upgrade` in a dedicated pull request, after reading the changelog.
 - **Treat a provider major version as a migration.** Read the upgrade guide first, and expect to change code.
-- **Set `default_labels`** on every google provider configuration, so nothing goes unlabeled.
-- **Keep credentials out of `provider` blocks.** Use ADC locally and Workload Identity Federation in CI.
-- **Prefer `google`; use `google-beta` per resource**, only where a preview feature requires it.
+- **Keep credentials out of `provider` blocks.** Providers that need credentials find them from the environment; for GCP, that's Application Default Credentials locally and Workload Identity Federation in CI.
 
 ## Clean up
 

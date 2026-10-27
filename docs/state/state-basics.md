@@ -458,4 +458,4 @@ After `destroy`, state still exists: it just records that nothing is managed. De
 
 ---
 
-[← Meta-Arguments](../core-language/meta-arguments.md) · [↑ Contents](../../README.md) · [Remote Backend on GCS →](remote-backend.md)
+[← Connecting to GCP](google-provider.md) · [↑ Contents](../../README.md) · [Remote Backend on GCS →](remote-backend.md)

@@ -127,14 +127,15 @@ If any of these fail, finish [Setup](docs/getting-started/setup.md) first.
 
 **Part 1 — Core Language**
 
-- [**Providers & Version Pinning**](docs/core-language/providers.md): `google` vs. `google-beta`, and the lock file.
+- [**Providers & Version Pinning**](docs/core-language/providers.md): what a provider is, version constraints, and the lock file.
 - [**Resources & Data Sources**](docs/core-language/resources-and-data-sources.md): manage vs. read.
 - [**Variables, Locals & Outputs**](docs/core-language/variables-and-outputs.md): inputs, computed values, and results.
 - [**Expressions & Functions**](docs/core-language/expressions.md): `for`, conditionals, and `terraform console`.
 - [**Meta-Arguments**](docs/core-language/meta-arguments.md): `count`, `for_each`, `depends_on`, and `lifecycle`.
 
-**Part 2 — State**
+**Part 2 — GCP & State**
 
+- [**Connecting to GCP**](docs/state/google-provider.md): the google provider, default labels, aliases, and google-beta.
 - [**State & Drift**](docs/state/state-basics.md): what state is and how to inspect it.
 - [**Remote Backend on GCS**](docs/state/remote-backend.md): shared state with locking.
 - [**Refactoring: moved, import, removed**](docs/state/refactoring.md): change addresses without destroying anything.
