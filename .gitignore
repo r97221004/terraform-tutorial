@@ -16,6 +16,7 @@ Thumbs.db
 crash.log
 crash.*.log
 examples/**/out/
+examples/getting-started/core-workflow/hello.txt
 *.tfplan
 tfplan
 

@@ -1,24 +1,26 @@
 # Core Workflow
 
-> init → plan → apply → destroy, using a local file and a random name, so no cloud account is needed yet.
+> init → plan → apply → destroy, starting from a single file on your own disk.
 
 ---
 
+This chapter builds one tiny configuration step by step, and adds one new idea at a time. You'll start with a single resource that writes a text file, then change it, add a second resource, break it by hand, and finally destroy everything. Nothing here touches the cloud, and nothing costs money.
+
 ## Before you start
 
-This chapter, and everything up to the end of Part 1, doesn't touch GCP. All you need is Terraform from [Setup](setup.md#install-terraform):
+All you need is Terraform from [Setup](setup.md#install-terraform):
 
 ```bash
 terraform version   # v1.11 or newer
 ```
 
-The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing and can't break anything, and the workflow is exactly the one you'll use on a cloud. Where local resources behave differently, such as having fewer settings that can change in place, the chapter says so. You'll switch to real GCP resources at the start of Part 2.
-
-Everything in this chapter runs in one directory:
+Make an empty directory to work in. You'll type the configuration yourself; it's only a few lines:
 
 ```bash
-cd examples/getting-started/core-workflow
+mkdir -p ~/terraform-first && cd ~/terraform-first
 ```
+
+The finished version is in [`examples/getting-started/core-workflow/`](../../examples/getting-started/core-workflow/) if you want to compare at the end.
 
 ## The loop you'll use for everything
 
@@ -60,71 +62,29 @@ flowchart LR
 
 You only re-run `init` when you add a provider or module, or change the backend. Every other change goes straight from editing to `plan`.
 
-## The configuration
+## Your first configuration
 
-[`examples/getting-started/core-workflow/main.tf`](../../examples/getting-started/core-workflow/main.tf) holds everything in one file. The next chapter, [Anatomy of HCL](hcl-anatomy.md), takes the syntax apart; for now, read it top to bottom:
+Create a file named `main.tf` with this content:
 
 ```hcl
-terraform {
-  required_version = ">= 1.10"
-
-  required_providers {
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.9"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.9"
-    }
-  }
-}
-
-variable "owner" {
-  description = "Written into the config file."
-  type        = string
-  default     = "platform-team"
-}
-
-# A random two-word name, like "relaxed-gecko". Generated once, then kept in state.
-resource "random_pet" "server" {
-  length = 2
-}
-
-# A file on your disk, standing in for a cloud resource.
-resource "local_file" "config" {
-  filename             = "${path.module}/out/server.conf"
-  content              = "name=${random_pet.server.id}\nowner=${var.owner}\n"
-  file_permission      = "0644"
-  directory_permission = "0755"
-}
-
-# Built into Terraform: it stores a value in state and creates nothing else.
-resource "terraform_data" "release" {
-  input = {
-    version = "1.0"
-  }
-}
-
-output "server_name" {
-  description = "The generated server name."
-  value       = random_pet.server.id
-}
-
-output "config_file" {
-  description = "Path of the generated config file."
-  value       = local_file.config.filename
+resource "local_file" "greeting" {
+  filename = "hello.txt"
+  content  = "Hello, Terraform!"
 }
 ```
 
-In plain words:
+That's a complete Terraform configuration. It says: *"there should be a file called `hello.txt` containing `Hello, Terraform!`"*. Each part has a name:
 
-- **`terraform`**: settings for Terraform itself. It needs version 1.10+ and two providers: `local`, which manages files, and `random`, which generates random values.
-- **`variable`**: an input. `owner` has a default, so you don't have to set it.
-- **`resource "random_pet" "server"`**: a generated name such as `romantic-hornet`. `random_pet` is the **type**; `server` is the **local name** you use to refer to it inside this configuration. Together they form its **address**, `random_pet.server`.
-- **`resource "local_file" "config"`**: a file whose content uses the pet name and the variable. Because it reads `random_pet.server.id`, Terraform knows to create the name first.
-- **`resource "terraform_data" "release"`**: built into Terraform; it only stores its `input` in state. It's here because, unlike the other two, it can be changed without being recreated, which you'll need in step 5.
-- **`output`**: values printed after `apply`, and readable later with `terraform output`.
+| Part | Here | Meaning |
+|---|---|---|
+| Block type | `resource` | something Terraform creates and manages |
+| Resource type | `local_file` | what kind of thing. The part before `_`, `local`, is the **provider** that knows how to make it |
+| Local name | `greeting` | your name for it, used to refer to it elsewhere |
+| Arguments | `filename`, `content` | the settings you want it to have |
+
+Together, the resource type and local name form the resource's **address**: `local_file.greeting`. You'll see addresses in every plan. The next chapter, [Anatomy of HCL](hcl-anatomy.md), takes the syntax apart properly; for now, this is all you need.
+
+A file on your disk stands in for a cloud resource here. The workflow is exactly the one you'll use on GCP from Part 2 on; where local resources behave differently, the chapter says so.
 
 ## 1. `terraform init`: prepare the directory
 
@@ -136,22 +96,23 @@ terraform init
 Initializing the backend...
 
 Initializing provider plugins...
-- terraform.io/builtin/terraform is built in to Terraform
-- Reusing version 3.9.1 of hashicorp/random from the dependency lock file
-- Reusing version 2.9.1 of hashicorp/local from the dependency lock file
-- Installing hashicorp/random v3.9.1...
-- Installed hashicorp/random v3.9.1 (signed by HashiCorp)
+- Finding latest version of hashicorp/local...
 - Installing hashicorp/local v2.9.1...
 - Installed hashicorp/local v2.9.1 (signed by HashiCorp)
+
+Terraform has created a lock file .terraform.lock.hcl to record the provider
+selections it made above. Include this file in your version control repository
+so that Terraform can guarantee to make the same selections by default when
+you run "terraform init" in the future.
 
 Terraform has been successfully initialized!
 ```
 
-`init` doesn't create anything. It works only on your local directory:
+Terraform saw `local_file`, worked out that it needs the `local` provider, and downloaded it. `init` doesn't create anything; it only prepares the directory:
 
-- **Downloads providers** into `.terraform/`. `terraform_data` needs no download because it's built in. `.terraform/` is a cache: never commit it, and it's safe to delete.
-- **Reads `.terraform.lock.hcl`**, which records the exact provider versions and their checksums. This repo already includes one, which is why the output says *"Reusing version ... from the dependency lock file"*: you get exactly the provider builds this chapter was written against. In a directory without a lock file, `init` picks the newest versions allowed by `~> 2.9` and `~> 3.9` and writes the file for you. **Commit it.** It guarantees that you, your teammates, and CI all run the same provider builds. [Providers & Version Pinning](../core-language/providers.md) covers it in depth.
-- **Sets up the backend**, which is where state is stored. With no backend configured, state is a local file. You'll move it to GCS in [Remote Backend on GCS](../state/remote-backend.md).
+- **Downloads providers** into `.terraform/`. Think of it as a cache: never commit it, and it's safe to delete.
+- **Writes `.terraform.lock.hcl`**, which records the exact provider version it chose. **Commit this file**, so everyone runs the same version. [Providers & Version Pinning](../core-language/providers.md) covers it, and the version settings real configurations add.
+- **Sets up the backend**, the place state is stored. With none configured, that's a local file. You'll move it to GCS in [Remote Backend on GCS](../state/remote-backend.md).
 
 `init` is safe to run any number of times.
 
@@ -160,15 +121,15 @@ Terraform has been successfully initialized!
 Two quick commands catch mistakes before anything is created:
 
 ```bash
-terraform fmt        # rewrites files into canonical style; prints the names of files it changed
-terraform validate   # checks syntax, types, and references, without creating anything
+terraform fmt        # rewrites files into the standard style; prints the files it changed
+terraform validate   # checks syntax and references, without creating anything
 ```
 
 ```
 Success! The configuration is valid.
 ```
 
-`validate` catches typos like a misspelled argument name or a reference to a variable that doesn't exist. It can't catch problems that only the real system knows about, such as a directory you can't write to, or, on a cloud, a bucket name someone else already took. `plan` and `apply` find those.
+`validate` catches typos, like a misspelled argument name. It can't catch problems only the real system knows about, such as a directory you can't write to, or, on a cloud, a bucket name someone else already took. `plan` and `apply` find those.
 
 ## 3. `terraform plan`: preview the change
 
@@ -183,48 +144,32 @@ plan. Resource actions are indicated with the following symbols:
 
 Terraform will perform the following actions:
 
-  # local_file.config will be created
-  + resource "local_file" "config" {
-      + content              = (known after apply)
+  # local_file.greeting will be created
+  + resource "local_file" "greeting" {
+      + content              = "Hello, Terraform!"
       + content_base64sha256 = (known after apply)
-      ...
-      + directory_permission = "0755"
-      + file_permission      = "0644"
-      + filename             = "./out/server.conf"
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + directory_permission = "0777"
+      + file_permission      = "0777"
+      + filename             = "hello.txt"
       + id                   = (known after apply)
     }
 
-  # random_pet.server will be created
-  + resource "random_pet" "server" {
-      + id        = (known after apply)
-      + length    = 2
-      + separator = "-"
-    }
-
-  # terraform_data.release will be created
-  + resource "terraform_data" "release" {
-      + id     = (known after apply)
-      + input  = {
-          + version = "1.0"
-        }
-      + output = (known after apply)
-    }
-
-Plan: 3 to add, 0 to change, 0 to destroy.
-
-Changes to Outputs:
-  + config_file = "./out/server.conf"
-  + server_name = (known after apply)
+Plan: 1 to add, 0 to change, 0 to destroy.
 ```
 
-How to read it:
+Read it from the top:
 
-- **`# random_pet.server will be created`**: the address, and what will happen to it.
-- **`+`** in front of each attribute: the value it will be created with. These include values you didn't write, such as `separator = "-"`, which are the provider's defaults.
-- **`(known after apply)`**: values decided at creation time. The pet name doesn't exist until `apply` generates it, so the file's `content`, which includes the name, isn't known either. On a cloud, IDs and IP addresses show up the same way.
-- **`Plan: 3 to add, 0 to change, 0 to destroy.`**: the summary line. Read it every time.
+- **`# local_file.greeting will be created`**: the address, and what will happen to it.
+- **`+`** in front of each line: the value it will be created with. You wrote two of them. `file_permission` and `directory_permission` are **defaults** the provider fills in.
+- **`(known after apply)`**: values that only exist once the file does, such as its checksums and `id`. On a cloud, IDs and IP addresses look the same.
+- **`Plan: 1 to add, 0 to change, 0 to destroy.`**: the summary line. Read it every time.
 
-`plan` only reads (it checks what already exists) and changes nothing. You can run it as often as you like.
+`plan` only looks; it changes nothing. Run it as often as you like.
 
 ### The four symbols
 
@@ -237,7 +182,7 @@ Every plan uses the same notation. Learn these and you can read any plan:
 | `-` | destroy | **High**: the resource and its data are gone |
 | `-/+` | destroy, then create a replacement | **High**: same address, but a brand-new resource. Data doesn't carry over |
 
-`-/+` is the one that surprises people. Some attributes can't be changed on an existing resource; you'll trigger one on purpose in step 5.
+You'll see `+` and `-/+` in this chapter. `~` needs a setting that can change on a live object, like a bucket's labels; you'll meet it on GCP in Part 2.
 
 ## 4. `terraform apply`: make it real
 
@@ -245,10 +190,10 @@ Every plan uses the same notation. Learn these and you can read any plan:
 terraform apply
 ```
 
-`apply` computes a fresh plan, shows it, and asks for confirmation:
+`apply` shows the plan again and asks for confirmation:
 
 ```
-Plan: 3 to add, 0 to change, 0 to destroy.
+Plan: 1 to add, 0 to change, 0 to destroy.
 
 Do you want to perform these actions?
   Terraform will perform the actions described above.
@@ -256,44 +201,50 @@ Do you want to perform these actions?
 
   Enter a value: yes
 
-terraform_data.release: Creating...
-terraform_data.release: Creation complete after 0s [id=84e968fb-09d9-1f8d-e617-26a201c0b906]
-random_pet.server: Creating...
-random_pet.server: Creation complete after 0s [id=romantic-hornet]
-local_file.config: Creating...
-local_file.config: Creation complete after 0s [id=bc4b5003b7d4e4862437586a3110c037cc08f177]
+local_file.greeting: Creating...
+local_file.greeting: Creation complete after 0s [id=42086c02e03bf671ddf621ed9922f52f2c7a605c]
 
-Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
-
-Outputs:
-
-config_file = "./out/server.conf"
-server_name = "romantic-hornet"
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 ```
 
-Only the exact word `yes` approves the plan. Anything else cancels it. Your pet name will differ; that's the point of `random_pet`.
+Only the exact word `yes` approves the plan. Anything else cancels it.
 
-Notice the order: `local_file.config` waited for `random_pet.server`, because its content needs the name. You never wrote that order down. Terraform worked it out from the reference.
-
-Check that it's real, using a tool other than Terraform:
+Check that it's real, with a tool other than Terraform:
 
 ```bash
-cat out/server.conf
+cat hello.txt
 ```
 
 ```
-name=romantic-hornet
-owner=platform-team
+Hello, Terraform!
 ```
 
-Then look at what `apply` left behind in the directory:
+(Your shell prompt may appear right after the text, on the same line. The content has no line break at the end, because you didn't write one.)
+
+Now look at what else appeared in the directory:
 
 ```bash
 ls -a
-# .  ..  .terraform  .terraform.lock.hcl  main.tf  out  terraform.tfstate
+# .  ..  .terraform  .terraform.lock.hcl  hello.txt  main.tf  terraform.tfstate
 ```
 
-`terraform.tfstate` is new. It's Terraform's record that `random_pet.server` in your code is the name `romantic-hornet`, and that `local_file.config` is the file `./out/server.conf`. **Never edit it by hand, and never commit it.** It can contain secrets, and it's the only link between your code and what exists. [State & Drift](../state/state-basics.md) covers it properly. The repo's `.gitignore` already excludes it, and the `out/` directory too.
+`terraform.tfstate` is new. It's Terraform's record that the address `local_file.greeting` is the real file `hello.txt`. `terraform show` prints what it remembers:
+
+```bash
+terraform show
+```
+
+```
+# local_file.greeting:
+resource "local_file" "greeting" {
+    content              = "Hello, Terraform!"
+    ...
+    filename             = "hello.txt"
+    id                   = "42086c02e03bf671ddf621ed9922f52f2c7a605c"
+}
+```
+
+**Never edit `terraform.tfstate` by hand, and never commit it.** It can contain secrets, and it's the only link between your code and what exists. [State & Drift](../state/state-basics.md) covers it properly.
 
 Run `plan` again:
 
@@ -305,153 +256,168 @@ terraform plan
 No changes. Your infrastructure matches the configuration.
 ```
 
-That's the declarative model at work. The code and the real world agree, so there's nothing to do. Applying the same configuration twice is always safe. It's also why the pet name stays `romantic-hornet`: it's random once, at creation, and state remembers it after that.
+The code and the real world agree, so there's nothing to do. That's what **declarative** means: you describe the result, and applying the same configuration twice is always safe.
 
 ## 5. Change something
 
-### An in-place update (`~`)
+### Change an argument
 
-In `main.tf`, change the release version from `"1.0"` to `"1.1"`:
-
-```hcl
-  input = {
-    version = "1.1"
-  }
-```
+In `main.tf`, change the content to `"Hello again, Terraform!"` and plan:
 
 ```bash
 terraform plan
 ```
 
 ```
-  # terraform_data.release will be updated in-place
-  ~ resource "terraform_data" "release" {
-        id     = "84e968fb-09d9-1f8d-e617-26a201c0b906"
-      ~ input  = {
-          ~ version = "1.0" -> "1.1"
-        }
-      ~ output = {
-          - version = "1.0"
-        } -> (known after apply)
+  # local_file.greeting must be replaced
+-/+ resource "local_file" "greeting" {
+      ~ content              = "Hello, Terraform!" -> "Hello again, Terraform!" # forces replacement
+      ...
+      ~ id                   = "42086c02e03bf671ddf621ed9922f52f2c7a605c" -> (known after apply)
+        # (3 unchanged attributes hidden)
     }
 
-Plan: 0 to add, 1 to change, 0 to destroy.
+Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-`~` means the same resource gets modified: its `id` stays. On a cloud, this is what changing a bucket's labels or a VM's metadata looks like. Apply it:
+- **`~`** on a line shows the old value and the new one: `"Hello, Terraform!" -> "Hello again, Terraform!"`.
+- **`-/+`** and **`must be replaced`**: Terraform will delete the file and create a new one. The `local` provider can't edit a file in place, so any change replaces it.
+- **`# forces replacement`** marks the argument responsible.
+
+For a text file, that's harmless. Apply it:
 
 ```bash
 terraform apply
 ```
 
-### A replacement (`-/+`)
+For a bucket holding model weights, the same `-/+` would mean deleting the bucket and every object in it. That's why you read every plan before you type `yes`: a one-word edit can mean "delete my data", and the plan is the only place that tells you.
 
-Now change something that can't be changed on an existing resource. A pet name's length is fixed when it's generated. In the `random_pet` block, change `length = 2` to:
+### Add a second resource
+
+Real configurations have many resources that refer to each other. Replace `main.tf` with:
 
 ```hcl
-  length = 3
+resource "random_pet" "name" {}
+
+resource "local_file" "greeting" {
+  filename = "hello.txt"
+  content  = "Hello, ${random_pet.name.id}!"
+}
+
+output "pet_name" {
+  value = random_pet.name.id
+}
 ```
 
+Three new things:
+
+- **`random_pet`** generates a random name like `definite-koi`. Its block is empty because every argument has a default.
+- **`${random_pet.name.id}`** inserts the generated name into the text. That's a **reference**: `random_pet.name` is the address, `.id` the value you want.
+- **`output`** prints a value after `apply`.
+
+Run `plan`, and Terraform stops you:
+
+```
+Error: Inconsistent dependency lock file
+
+The following dependency selections recorded in the lock file are
+inconsistent with the current configuration:
+  - provider registry.terraform.io/hashicorp/random: required by this configuration but no version is selected
+```
+
+`random_pet` comes from a provider you haven't installed yet, `random`. This is the "you added a provider" case from the loop diagram. (The message suggests `init -upgrade`; plain `init` is enough here, because nothing that's already locked needs to change.)
+
 ```bash
+terraform init
 terraform plan
 ```
 
 ```
-  # local_file.config must be replaced
--/+ resource "local_file" "config" {
-      ~ content              = <<-EOT
-            name=romantic-hornet
-            owner=platform-team
-        EOT -> (known after apply) # forces replacement
+  # local_file.greeting must be replaced
+-/+ resource "local_file" "greeting" {
+      ~ content              = "Hello again, Terraform!" -> (known after apply) # forces replacement
       ...
-      ~ id                   = "bc4b5003b7d4e4862437586a3110c037cc08f177" -> (known after apply)
-        # (3 unchanged attributes hidden)
     }
 
-  # random_pet.server must be replaced
--/+ resource "random_pet" "server" {
-      ~ id        = "romantic-hornet" -> (known after apply)
-      ~ length    = 2 -> 3 # forces replacement
-        # (1 unchanged attribute hidden)
+  # random_pet.name will be created
+  + resource "random_pet" "name" {
+      + id        = (known after apply)
+      + length    = 2
+      + separator = "-"
     }
 
-Plan: 2 to add, 0 to change, 2 to destroy.
+Plan: 2 to add, 0 to change, 1 to destroy.
+
+Changes to Outputs:
+  + pet_name = (known after apply)
 ```
 
-**`# forces replacement`** marks the attribute responsible. Read the two resources together:
-
-- `random_pet.server` is replaced because its `length` changed. The old name is gone for good; the new one will be different.
-- `local_file.config` is replaced too, even though you didn't touch it. Its content includes the name, and a new name means new content.
-
-One edit, two destroyed resources. Here it costs nothing, but picture the same shape on a cloud: the name is a bucket name, and everything that references it gets rebuilt. For a bucket holding model weights, that's an outage plus a multi-gigabyte re-upload.
-
-**Don't apply it.** Change `length` back to `2` and confirm the plan is clean again:
+The new content is `(known after apply)`, because the pet name doesn't exist yet. Apply it and watch the order:
 
 ```bash
-terraform plan   # No changes.
+terraform apply
 ```
 
-This is why you read every plan before you apply. A one-word edit can mean "delete my data", and the plan is the only place that tells you.
+```
+local_file.greeting: Destroying... [id=c3770660d07505e77d981f169412837fb9a552a5]
+local_file.greeting: Destruction complete after 0s
+random_pet.name: Creating...
+random_pet.name: Creation complete after 0s [id=definite-koi]
+local_file.greeting: Creating...
+local_file.greeting: Creation complete after 0s [id=547b3ab13d6a0d2250c6bf25d4e4901dee4982b6]
+
+Apply complete! Resources: 2 added, 0 changed, 1 destroyed.
+
+Outputs:
+
+pet_name = "definite-koi"
+```
+
+The name was created before the new file, because the file's content needs it. You never wrote that order down; Terraform worked it out from the reference. Your pet name will be different; that's the point of `random_pet`.
+
+```bash
+cat hello.txt                   # Hello, definite-koi!
+terraform output -raw pet_name  # definite-koi, without quotes, for use in scripts
+```
 
 ## 6. Drift: someone changes it by hand
 
-Terraform only knows about changes made through Terraform. Simulate a teammate "quickly fixing something" by editing the file directly:
+Terraform only knows about changes made through Terraform. Simulate a teammate "cleaning up" by deleting the file:
 
 ```bash
-sed -i 's/owner=platform-team/owner=someone-else/' out/server.conf
-```
-
-```bash
+rm hello.txt
 terraform plan
 ```
 
 ```
-  # local_file.config will be created
-  + resource "local_file" "config" {
-      + content              = <<-EOT
-            name=romantic-hornet
-            owner=platform-team
-        EOT
+random_pet.name: Refreshing state... [id=definite-koi]
+local_file.greeting: Refreshing state... [id=547b3ab13d6a0d2250c6bf25d4e4901dee4982b6]
+
+  # local_file.greeting will be created
+  + resource "local_file" "greeting" {
+      + content              = "Hello, definite-koi!"
       ...
     }
 
 Plan: 1 to add, 0 to change, 0 to destroy.
 ```
 
-`plan` refreshed the file before comparing. The `local` provider treats a file whose content no longer matches as gone, so the plan recreates it with the content your code says. To see only what changed outside Terraform, without planning a fix, use a refresh-only plan:
-
-```bash
-terraform plan -refresh-only
-```
-
-```
-Note: Objects have changed outside of Terraform
-
-Terraform detected the following changes made outside of Terraform since the
-last "terraform apply" which may have affected this plan:
-
-  # local_file.config has been deleted
-  - resource "local_file" "config" {
-      ...
-    }
-```
-
-Cloud resources show drift in more detail: a hand-edited bucket label appears as `~ "component" = "artifacts" -> "hotfix"`, and the plan offers an in-place update to put it back. You'll see that on a real bucket in [State & Drift](../state/state-basics.md).
-
-Either way, you have two honest choices:
+The `Refreshing state...` lines are Terraform checking what really exists before it compares. It found the file gone, so the plan puts it back. A difference between your code and reality that Terraform didn't cause is called **drift**. When it happens, you have two honest choices:
 
 - **The hand change was wrong**: `terraform apply` reverts it.
 - **The hand change was right**: update `main.tf` to match, so code and reality agree again.
 
-Ignoring drift is the one wrong choice. The next person to run `apply` reverts the change without knowing it was there. Revert it now:
+Ignoring drift is the one wrong choice: the next person to run `apply` reverts the change without knowing it was there. Revert it now:
 
 ```bash
 terraform apply
 ```
 
+On a cloud, drift is usually a setting changed in the Console rather than a deleted object. You'll see that on a real bucket in [State & Drift](../state/state-basics.md).
+
 ## 7. Saved plans: apply exactly what you reviewed
 
-When you run `terraform apply` with no arguments, Terraform computes a **new** plan. If something changed in the meantime, such as a teammate's apply or a hand edit, it might not match the plan you reviewed a minute ago. Saving the plan removes that gap:
+When you run `terraform apply` with no arguments, Terraform computes a **new** plan. If something changed in the meantime, it might not match the plan you reviewed a minute ago. Saving the plan removes that gap:
 
 ```bash
 terraform plan -out=tfplan    # save the plan to a file
@@ -459,104 +425,40 @@ terraform show tfplan         # re-read it any time
 terraform apply tfplan        # apply exactly that plan; no prompt, because you already reviewed it
 ```
 
-If the state changed after the plan was saved, `apply tfplan` refuses to run and you plan again. This is how CI pipelines work: one job saves the plan, a human reviews it, and a later job applies that exact file. You'll build this in [CI/CD](../team-workflow/ci-cd.md). `tfplan` is git-ignored, because a saved plan can contain sensitive values.
+If anything changed after the plan was saved, `apply tfplan` refuses to run and you plan again. This is how CI pipelines work: one job saves the plan, a human reviews it, and a later job applies that exact file. You'll build this in [CI/CD](../team-workflow/ci-cd.md). Treat plan files like state: they can contain sensitive values, so don't commit them.
 
-## 8. Outputs
+## Checkpoint
 
-```bash
-terraform output                   # every output
-terraform output -raw config_file  # one value, without quotes, for use in scripts
-```
-
-```bash
-cat "$(terraform output -raw config_file)"
-```
-
-Outputs are how one piece of infrastructure hands values to scripts, CI, or other Terraform configurations.
-
-## Checkpoint: run the workflow without a script
-
-Do this checkpoint **before step 9**, while the resources still exist. Try each task before opening its answer. The goal isn't to memorize commands; it's to predict what Terraform will do, verify that prediction in the plan, and stop when the plan is unsafe.
+Do this **before step 8**, while your resources still exist. Try each part before opening its answer.
 
 ### 1. Predict the plan
 
-For each change, decide whether the plan will show `+` (create), `~` (update in place), `-/+` (replace), `-` (destroy), or no changes. Also predict the summary counts.
+For each change, decide whether the plan shows `+`, `-/+`, `-`, or no changes, and predict the summary line. Then check with `terraform plan`, **without applying**, and undo the change before the next one.
 
 | Change | Your prediction |
 |---|---|
 | Run `terraform plan` without changing anything | |
-| Add `channel = "stable"` to the `release` resource's `input` | |
-| Change `random_pet`'s `separator` from the default `"-"` to `"_"` (add `separator = "_"`) | |
-| Delete the `terraform_data.release` block | |
-
-Verify each one with `terraform plan`, one at a time. **Do not apply** the separator change. Restore `main.tf` after each experiment and confirm that the final plan is clean.
+| Change `filename` to `"greeting.txt"` | |
+| Give the pet a three-word name: `resource "random_pet" "name" { length = 3 }` | |
+| Delete only the `output` block | |
 
 <details>
 <summary>Answer</summary>
 
 | Change | Expected result | Summary |
 |---|---|---|
-| No configuration change | no changes | `0 to add, 0 to change, 0 to destroy` |
-| Add a key to `input` | `~` update in place | `0 to add, 1 to change, 0 to destroy` |
-| Change the separator | `-/+` for both `random_pet.server` and `local_file.config` | `2 to add, 0 to change, 2 to destroy` |
-| Delete the `release` block | `-` destroy | `0 to add, 0 to change, 1 to destroy` |
+| No change | no changes | `No changes.` |
+| Change `filename` | `-/+` for `local_file.greeting` | `1 to add, 0 to change, 1 to destroy` |
+| `length = 3` | `-/+` for **both** `random_pet.name` and `local_file.greeting` | `2 to add, 0 to change, 2 to destroy` |
+| Delete the output | no resource changes, only `Changes to Outputs: - pet_name` | no `Plan:` line; outputs only |
 
-Terraform tracks each resource at its address, such as `random_pet.server`. Changing an updatable argument modifies the object at that address; changing a fixed one replaces it, along with anything whose values depend on it; removing the address from configuration tells Terraform the object is no longer wanted.
-
-</details>
-
-### 2. Make a change without copying
-
-Add an input variable named `environment` with type `string` and default value `"dev"`. Use it to add an `environment=` line to the config file's content.
-
-Then run, in order:
-
-```bash
-terraform fmt
-terraform validate
-terraform plan
-terraform apply
-terraform plan -var environment=staging
-```
-
-Before each `plan`, say out loud what you expect. Apply the default `dev` value, but don't apply the one-off `staging` override.
-
-<details>
-<summary>Answer</summary>
-
-One valid implementation is:
-
-```hcl
-variable "environment" {
-  description = "Environment written into the config file."
-  type        = string
-  default     = "dev"
-}
-```
-
-```hcl
-  content = "name=${random_pet.server.id}\nowner=${var.owner}\nenvironment=${var.environment}\n"
-```
-
-The first plan replaces `local_file.config` (`-/+`), because a local file can't be edited in place: any content change means a new file. That's acceptable here, since the file holds nothing that isn't in the code. The pet name stays the same, because nothing about `random_pet.server` changed. After applying, a normal plan is clean. `terraform plan -var environment=staging` temporarily overrides the default and proposes another replacement; because you don't apply it, both the configuration default and the real file remain `dev`.
+The third one is the important lesson: you edited one resource, but the file is replaced too, because its content depends on the name. Always look at *everything* a plan touches, not just the resource you edited.
 
 </details>
 
-### 3. Break it, read the error, fix it
+### 2. Break it, read the error, fix it
 
-Temporarily change the output reference from:
-
-```hcl
-value = local_file.config.filename
-```
-
-to the misspelled address:
-
-```hcl
-value = local_file.confg.filename
-```
-
-Run `terraform validate`. Before fixing it, identify all three parts of the address in the error: resource type, local name, and attribute. Restore `config`, then validate again.
+Misspell the reference as `${random_pet.nmae.id}` and run `terraform validate`. Which part of the address is wrong, and how does the error tell you?
 
 <details>
 <summary>Answer</summary>
@@ -564,72 +466,47 @@ Run `terraform validate`. Before fixing it, identify all three parts of the addr
 ```
 Error: Reference to undeclared resource
 
-  on main.tf line 49, in output "config_file":
-  49:   value       = local_file.confg.filename
+  on main.tf line 5, in resource "local_file" "greeting":
+   5:   content  = "Hello, ${random_pet.nmae.id}!"
 
-A managed resource "local_file" "confg" has not been declared in the root
+A managed resource "random_pet" "nmae" has not been declared in the root
 module.
 ```
 
-- `local_file` is the resource type.
-- `confg` is the misspelled local name; the declared name is `config`.
-- `filename` is the attribute the output wants to read.
-
-The fix is to restore `local_file.config.filename`. `terraform validate` should then succeed.
+The resource type `random_pet` is right; the local name `nmae` isn't declared. The error gives the file, the line, and the exact name it couldn't find. Fix the spelling and validate again.
 
 </details>
 
-### 4. Explain the workflow
+### 3. Explain the workflow
 
-Answer these in your own words:
+Answer in your own words:
 
-1. Why does Terraform need state if the `.tf` files already describe what you want?
-2. Why does a second `apply` normally produce no changes?
-3. What should you do when a small edit unexpectedly produces `-/+`?
-4. Why should a saved plan file be treated as sensitive?
+1. Why does Terraform need a state file if `main.tf` already describes what you want?
+2. Why does a second `apply` normally do nothing?
+3. When do you need to run `terraform init` again?
+4. What should you do when a small edit unexpectedly shows `-/+`?
 
 <details>
 <summary>Answer</summary>
 
-1. Configuration describes the desired result; state maps Terraform addresses such as `random_pet.server` to the real objects, like the name `romantic-hornet`, and records their known attributes. Without state, Terraform couldn't even tell you which random name it generated. It refreshes those objects and compares all three views to build a plan.
-2. After the first apply, configuration, state, and the real objects agree. Terraform is declarative, so it has nothing else to do.
-3. Stop. Read the attribute marked `# forces replacement`, check what else is replaced because it depends on that resource, decide whether losing and recreating them is acceptable, and revert or redesign the change if it isn't. Don't apply merely because the edit looked small.
-4. A saved plan contains the exact proposed values and can include sensitive data even when the terminal display hides it. Don't commit or casually share plan files.
+1. `main.tf` says what you want; state records what Terraform actually created for each address, such as which random name it generated. Without state, Terraform couldn't tell whether `hello.txt` is its file or a stranger's, or what the pet is called.
+2. After the first apply, the configuration, the state, and the real files agree, so there's nothing to change.
+3. When you add a provider (as with `random`) or a module, or change the backend. Not for ordinary edits.
+4. Stop. Read the line marked `# forces replacement`, check what else is replaced along with it, and decide whether losing and recreating it is acceptable. Don't apply just because the edit looked small.
 
 </details>
 
-You're ready to continue when all of these are true:
-
-- [ ] You predicted the plan before running it, including the destructive replacement.
-- [ ] You added and applied the `environment` variable without copying the answer first.
-- [ ] You diagnosed the broken reference from Terraform's error message.
-- [ ] `terraform fmt -check`, `terraform validate`, and `terraform plan` all succeed; the plan is clean.
-- [ ] You can explain configuration, state, refresh, plan, and apply without looking back at the chapter.
-
-## 9. `terraform destroy`: remove everything
+## 8. `terraform destroy`: remove everything
 
 ```bash
 terraform destroy
 ```
 
 ```
-  # local_file.config will be destroyed
-  - resource "local_file" "config" {
-      ...
-    }
+Plan: 0 to add, 0 to change, 2 to destroy.
 
-  # random_pet.server will be destroyed
-  - resource "random_pet" "server" {
-      - id        = "romantic-hornet" -> null
-      ...
-    }
-
-  # terraform_data.release will be destroyed
-  - resource "terraform_data" "release" {
-      ...
-    }
-
-Plan: 0 to add, 0 to change, 3 to destroy.
+Changes to Outputs:
+  - pet_name = "definite-koi" -> null
 
 Do you really want to destroy all resources?
   Terraform will destroy all your managed infrastructure, as shown above.
@@ -637,36 +514,33 @@ Do you really want to destroy all resources?
 
   Enter a value: yes
 
-terraform_data.release: Destroying... [id=84e968fb-09d9-1f8d-e617-26a201c0b906]
-terraform_data.release: Destruction complete after 0s
-local_file.config: Destroying... [id=bc4b5003b7d4e4862437586a3110c037cc08f177]
-local_file.config: Destruction complete after 0s
-random_pet.server: Destroying... [id=romantic-hornet]
-random_pet.server: Destruction complete after 0s
+local_file.greeting: Destroying... [id=547b3ab13d6a0d2250c6bf25d4e4901dee4982b6]
+local_file.greeting: Destruction complete after 0s
+random_pet.name: Destroying... [id=definite-koi]
+random_pet.name: Destruction complete after 0s
 
-Destroy complete! Resources: 3 destroyed.
+Destroy complete! Resources: 2 destroyed.
 ```
 
-The order is the reverse of creation: the file goes before the name it depends on.
+The order is the reverse of creation: the file goes before the name it depends on. `hello.txt` is gone.
 
-`destroy` removes **every resource in this configuration's state**, and nothing else. It deleted `server.conf`, but left the now-empty `out/` directory, because Terraform didn't create that as a resource. On a cloud, it likewise never touches resources it didn't create, even in the same project.
-
-Preview a destroy without doing it with `terraform plan -destroy`. That's a good habit before running `destroy` against anything that matters.
+`destroy` removes **every resource in this configuration's state**, and nothing else. It never touches things Terraform didn't create, even in the same directory or, on a cloud, the same project. To preview a destroy without doing it, run `terraform plan -destroy`.
 
 ## Best practices
 
-- **Read the summary line and look for `-` and `-/+`** in every plan before typing `yes`. Look for `# forces replacement` to see why, and for other resources replaced along with it.
-- **Never edit infrastructure by hand.** If you must during an incident, bring the code back in line straight after.
+- **Read the summary line and look for `-` and `-/+`** in every plan before typing `yes`. Look for `# forces replacement` to see why, and check what else is replaced with it.
+- **Never change managed things by hand.** If you must during an incident, bring the code back in line straight after.
 - **Commit `.terraform.lock.hcl`; never commit `.terraform/`, `*.tfstate`, or saved plans.**
 - **Run `terraform fmt` and `terraform validate` before every commit.** They're instant, and CI will run them anyway (see [Testing & Code Quality](../team-workflow/testing-and-quality.md)).
-- **Use `plan -out` + `apply <planfile>`** whenever a plan is reviewed by someone else or applied by automation.
+- **Use `plan -out` + `apply <planfile>`** whenever someone else reviews the plan or automation applies it.
 
 ## Clean up
 
-If you skipped step 9, destroy everything now:
+If you skipped step 8, destroy everything now, then remove the practice directory:
 
 ```bash
 terraform destroy
+cd ~ && rm -rf ~/terraform-first
 ```
 
 Nothing here costs money, but tear down what you create at the end of every chapter anyway. It's the habit that keeps GPU node pools from running all weekend in Part 5.

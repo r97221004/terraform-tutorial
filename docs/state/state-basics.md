@@ -252,7 +252,7 @@ last "terraform apply" which may have affected this plan:
 Plan: 0 to add, 1 to change, 0 to destroy.
 ```
 
-In [Core Workflow](../getting-started/core-workflow.md#6-drift-someone-changes-it-by-hand), a hand-edited local file could only be recreated. A bucket label can be changed in place, so the plan is more precise: a `Note: Objects have changed outside of Terraform` section shows exactly what changed, followed by an in-place update that reverts it.
+In [Core Workflow](../getting-started/core-workflow.md#6-drift-someone-changes-it-by-hand), a deleted local file could only be recreated. A bucket label can be changed in place, so the plan is more precise: a `Note: Objects have changed outside of Terraform` section shows exactly what changed, followed by an in-place update that reverts it.
 
 ### Deleted outside Terraform
 

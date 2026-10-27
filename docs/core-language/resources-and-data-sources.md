@@ -201,7 +201,7 @@ flowchart LR
 ```
 
 - **Create**: the address is in your code but not in state.
-- **Update in place** (`~`): you changed an argument that can be changed on a live object, such as `terraform_data`'s `input` in [Core Workflow](../getting-started/core-workflow.md#an-in-place-update-), or a bucket's labels on GCP.
+- **Update in place** (`~`): you changed an argument that can be changed on a live object, such as a bucket's labels on GCP. `local_file` and `random_pet` have no such arguments, which is why you haven't seen `~` on a resource yet.
 - **Replace** (`-/+`): you changed an argument that can't be changed, such as a pet's `prefix` or a bucket's `name`. Terraform deletes the object and creates a new one at the same address. `local_file` has no updatable arguments at all: any change replaces the file.
 - **Destroy**: the address is in state but no longer in your code, or you ran `terraform destroy`.
 
