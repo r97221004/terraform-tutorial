@@ -1,24 +1,14 @@
-output "project_number" {
-  description = "From the google_project data source."
-  value       = data.google_project.this.number
+output "owner" {
+  description = "Read from the data source, so known at plan time."
+  value       = local.team.owner
 }
 
-output "running_as" {
-  description = "The account Terraform is authenticated as."
-  value       = data.google_client_openid_userinfo.me.email
+output "dataset_name" {
+  description = "Generated at apply time."
+  value       = random_pet.dataset.id
 }
 
-output "gcs_service_agent" {
-  description = "Cloud Storage's service agent for this project."
-  value       = data.google_storage_project_service_account.gcs.email_address
-}
-
-output "bucket_url" {
-  description = "Computed by GCP, known only after apply."
-  value       = google_storage_bucket.datasets.url
-}
-
-output "bucket_self_link" {
-  description = "Computed by GCP, known only after apply."
-  value       = google_storage_bucket.datasets.self_link
+output "manifest_sha256" {
+  description = "Computed by the provider, known only after apply."
+  value       = local_file.manifest.content_sha256
 }

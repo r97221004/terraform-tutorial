@@ -1,41 +1,27 @@
 # Resources are things Terraform MANAGES: it creates, updates, and deletes them.
 
-resource "google_storage_bucket" "datasets" {
-  # Required arguments.
-  name     = "${var.project_id}-datasets"
-  location = var.region
-
-  # Optional arguments. Leave one out and the provider or GCP picks a default.
-  storage_class               = "STANDARD"
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
-
-  versioning {
-    enabled = true
-  }
-
-  # Keep only the 3 newest old versions of each object.
-  lifecycle_rule {
-    condition {
-      num_newer_versions = 3
-      with_state         = "ARCHIVED"
-    }
-    action {
-      type = "Delete"
-    }
-  }
+locals {
+  # jsondecode turns the file's text into a value you can index.
+  team = jsondecode(data.local_file.team.content)
 }
 
-# Data source attributes feed into a resource like any other value.
-resource "google_storage_bucket_object" "manifest" {
-  bucket       = google_storage_bucket.datasets.name
-  name         = "MANIFEST.json"
-  content_type = "application/json"
+resource "random_pet" "dataset" {
+  # Every argument is optional: length defaults to 2, separator to "-".
+  prefix = local.team.team
+}
 
+resource "local_file" "manifest" {
+  # Required argument.
+  filename = "${path.module}/out/manifest.json"
+
+  # Exactly one content source is required: content, content_base64, or source.
   content = jsonencode({
-    project_id     = data.google_project.this.project_id
-    project_number = data.google_project.this.number
-    created_by     = data.google_client_openid_userinfo.me.email
+    dataset     = random_pet.dataset.id
+    owner       = local.team.owner
+    cost_center = local.team.cost_center
   })
+
+  # Optional arguments. Leave one out and the provider picks a default.
+  file_permission      = "0644"
+  directory_permission = "0755"
 }
