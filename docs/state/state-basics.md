@@ -225,7 +225,34 @@ gcloud storage buckets update "gs://$(terraform output -raw bucket_name)" --upda
 terraform plan
 ```
 
-You saw this in [Core Workflow](../getting-started/core-workflow.md#6-drift-someone-changes-it-by-hand): a `Note: Objects have changed outside of Terraform` section listing the drift, followed by a plan that reverts it.
+```
+Note: Objects have changed outside of Terraform
+
+Terraform detected the following changes made outside of Terraform since the
+last "terraform apply" which may have affected this plan:
+
+  # google_storage_bucket.artifacts has changed
+  ~ resource "google_storage_bucket" "artifacts" {
+      ~ labels                      = {
+          ~ "component" = "artifacts" -> "hotfix"
+        }
+        ...
+    }
+
+...
+
+  # google_storage_bucket.artifacts will be updated in-place
+  ~ resource "google_storage_bucket" "artifacts" {
+      ~ labels                      = {
+          ~ "component" = "hotfix" -> "artifacts"
+        }
+        ...
+    }
+
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+In [Core Workflow](../getting-started/core-workflow.md#6-drift-someone-changes-it-by-hand), a hand-edited local file could only be recreated. A bucket label can be changed in place, so the plan is more precise: a `Note: Objects have changed outside of Terraform` section shows exactly what changed, followed by an in-place update that reverts it.
 
 ### Deleted outside Terraform
 

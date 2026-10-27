@@ -122,7 +122,7 @@ If any of these fail, finish [Setup](docs/getting-started/setup.md) first.
 
 - [**What is Terraform?**](docs/getting-started/what-is-terraform.md): Infrastructure as Code, and the one idea behind everything.
 - [**Setup**](docs/getting-started/setup.md): Terraform, gcloud, a sandbox project, a budget alert, and ADC.
-- [**Core Workflow**](docs/getting-started/core-workflow.md): `init` → `plan` → `apply` → `destroy` on your first GCS bucket.
+- [**Core Workflow**](docs/getting-started/core-workflow.md): `init` → `plan` → `apply` → `destroy` on local resources, no cloud account needed.
 - [**Anatomy of HCL**](docs/getting-started/hcl-anatomy.md): blocks, arguments, and expressions.
 
 **Part 1 — Core Language**

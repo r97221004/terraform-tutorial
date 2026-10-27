@@ -1,22 +1,23 @@
 # Core Workflow
 
-> init → plan → apply → destroy, using a GCS bucket as your first resource.
+> init → plan → apply → destroy, using a local file and a random name, so no cloud account is needed yet.
 
 ---
 
 ## Before you start
 
-Finish [Setup](setup.md) first. In particular, check that these are set in your current shell:
+This chapter doesn't touch GCP. All you need is Terraform from [Setup](setup.md#1-install-terraform):
 
 ```bash
-echo "$TF_VAR_project_id $TF_VAR_region"   # e.g. tf-tutorial-3fa9c1 us-central1
-gcloud auth application-default print-access-token > /dev/null && echo "ADC OK"
+terraform version   # v1.11 or newer
 ```
+
+The resources here live on your own disk: a generated name, a file, and a value stored in state. They cost nothing, can't break anything, and behave like cloud resources in every way that matters for learning the workflow. Later chapters switch to real GCP resources.
 
 Everything in this chapter runs in one directory:
 
 ```bash
-cd examples/getting-started/first-bucket
+cd examples/getting-started/core-workflow
 ```
 
 ## The loop you'll use for everything
@@ -61,67 +62,69 @@ You only re-run `init` when you add a provider or module, or change the backend.
 
 ## The configuration
 
-[`examples/getting-started/first-bucket/main.tf`](../../examples/getting-started/first-bucket/main.tf) holds everything in one file. The next chapter, [Anatomy of HCL](hcl-anatomy.md), takes the syntax apart; for now, read it top to bottom:
+[`examples/getting-started/core-workflow/main.tf`](../../examples/getting-started/core-workflow/main.tf) holds everything in one file. The next chapter, [Anatomy of HCL](hcl-anatomy.md), takes the syntax apart; for now, read it top to bottom:
 
 ```hcl
 terraform {
   required_version = ">= 1.10"
 
   required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 8.0"
+    local = {
+      source  = "hashicorp/local"
+      version = "~> 2.9"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.9"
     }
   }
 }
 
-variable "project_id" {
-  description = "The GCP project to create resources in. Set via TF_VAR_project_id."
+variable "owner" {
+  description = "Written into the config file."
   type        = string
+  default     = "platform-team"
 }
 
-variable "region" {
-  description = "Default region. Set via TF_VAR_region."
-  type        = string
-  default     = "us-central1"
+# A random two-word name, like "relaxed-gecko". Generated once, then kept in state.
+resource "random_pet" "server" {
+  length = 2
 }
 
-provider "google" {
-  project = var.project_id
-  region  = var.region
+# A file on your disk, standing in for a cloud resource.
+resource "local_file" "config" {
+  filename             = "${path.module}/out/server.conf"
+  content              = "name=${random_pet.server.id}\nowner=${var.owner}\n"
+  file_permission      = "0644"
+  directory_permission = "0755"
 }
 
-resource "google_storage_bucket" "first" {
-  # Bucket names are globally unique across ALL of GCP, so prefix with the project ID.
-  name     = "${var.project_id}-first-bucket"
-  location = var.region
-
-  uniform_bucket_level_access = true       # IAM only, no per-object ACLs
-  public_access_prevention    = "enforced" # can never be made public by accident
-
-  # Lets `terraform destroy` delete the bucket even if it still holds objects.
-  # Fine for a lab; leave it off for buckets holding data you care about.
-  force_destroy = true
-
-  labels = {
-    managed-by = "terraform"
-    tutorial   = "core-workflow"
+# Built into Terraform: it stores a value in state and creates nothing else.
+resource "terraform_data" "release" {
+  input = {
+    version = "1.0"
   }
 }
 
-output "bucket_url" {
-  description = "The gs:// URL of the bucket."
-  value       = google_storage_bucket.first.url
+output "server_name" {
+  description = "The generated server name."
+  value       = random_pet.server.id
+}
+
+output "config_file" {
+  description = "Path of the generated config file."
+  value       = local_file.config.filename
 }
 ```
 
 In plain words:
 
-- **`terraform`**: settings for Terraform itself. It needs version 1.10+ and the `google` provider, any 8.x version.
-- **`variable`**: inputs. `project_id` comes from the `TF_VAR_project_id` you exported in Setup.
-- **`provider "google"`**: configures the plugin that talks to GCP. Every Google resource uses this project and region unless it says otherwise.
-- **`resource "google_storage_bucket" "first"`**: the one thing you want to exist. `google_storage_bucket` is the **type**; `first` is the **local name** you use to refer to it inside this configuration. Together they form its **address**, `google_storage_bucket.first`.
-- **`output`**: a value printed after `apply`, and readable later with `terraform output`.
+- **`terraform`**: settings for Terraform itself. It needs version 1.10+ and two providers: `local`, which manages files, and `random`, which generates random values.
+- **`variable`**: an input. `owner` has a default, so you don't have to set it.
+- **`resource "random_pet" "server"`**: a generated name such as `romantic-hornet`. `random_pet` is the **type**; `server` is the **local name** you use to refer to it inside this configuration. Together they form its **address**, `random_pet.server`.
+- **`resource "local_file" "config"`**: a file whose content uses the pet name and the variable. Because it reads `random_pet.server.id`, Terraform knows to create the name first.
+- **`resource "terraform_data" "release"`**: built into Terraform; it only stores its `input` in state. It's here because, unlike the other two, it can be changed without being recreated, which you'll need in step 5.
+- **`output`**: values printed after `apply`, and readable later with `terraform output`.
 
 ## 1. `terraform init`: prepare the directory
 
@@ -133,35 +136,39 @@ terraform init
 Initializing the backend...
 
 Initializing provider plugins...
-- Reusing previous version of hashicorp/google from the dependency lock file
-- Installing hashicorp/google v8.7.0...
-- Installed hashicorp/google v8.7.0 (signed by HashiCorp)
+- terraform.io/builtin/terraform is built in to Terraform
+- Reusing version 3.9.1 of hashicorp/random from the dependency lock file
+- Reusing version 2.9.1 of hashicorp/local from the dependency lock file
+- Installing hashicorp/random v3.9.1...
+- Installed hashicorp/random v3.9.1 (signed by HashiCorp)
+- Installing hashicorp/local v2.9.1...
+- Installed hashicorp/local v2.9.1 (signed by HashiCorp)
 
 Terraform has been successfully initialized!
 ```
 
-`init` doesn't touch GCP. It works only on your local directory:
+`init` doesn't create anything. It works only on your local directory:
 
-- **Downloads providers** into `.terraform/`. The google provider is a large binary, so the first `init` takes a moment. `.terraform/` is a cache: never commit it, and it's safe to delete.
-- **Reads `.terraform.lock.hcl`**, which records the exact provider version and its checksums. This repo already includes one, which is why the output says *"Reusing previous version ... from the dependency lock file"*: you get exactly the provider build this chapter was written against. In a directory without a lock file, `init` picks the newest version allowed by `~> 8.0` and writes the file for you. **Commit it.** It guarantees that you, your teammates, and CI all run the same provider build. [Providers & Version Pinning](../core-language/providers.md) covers it in depth.
+- **Downloads providers** into `.terraform/`. `terraform_data` needs no download because it's built in. `.terraform/` is a cache: never commit it, and it's safe to delete.
+- **Reads `.terraform.lock.hcl`**, which records the exact provider versions and their checksums. This repo already includes one, which is why the output says *"Reusing version ... from the dependency lock file"*: you get exactly the provider builds this chapter was written against. In a directory without a lock file, `init` picks the newest versions allowed by `~> 2.9` and `~> 3.9` and writes the file for you. **Commit it.** It guarantees that you, your teammates, and CI all run the same provider builds. [Providers & Version Pinning](../core-language/providers.md) covers it in depth.
 - **Sets up the backend**, which is where state is stored. With no backend configured, state is a local file. You'll move it to GCS in [Remote Backend on GCS](../state/remote-backend.md).
 
 `init` is safe to run any number of times.
 
 ## 2. `fmt` and `validate`: cheap checks first
 
-Two quick commands catch mistakes before you talk to GCP:
+Two quick commands catch mistakes before anything is created:
 
 ```bash
 terraform fmt        # rewrites files into canonical style; prints the names of files it changed
-terraform validate   # checks syntax, types, and references, without calling any API
+terraform validate   # checks syntax, types, and references, without creating anything
 ```
 
 ```
 Success! The configuration is valid.
 ```
 
-`validate` catches typos like a misspelled argument name or a reference to a variable that doesn't exist. It can't catch problems that only GCP knows about, such as a bucket name someone else already took. `plan` and `apply` find those.
+`validate` catches typos like a misspelled argument name or a reference to a variable that doesn't exist. It can't catch problems that only the real system knows about, such as a directory you can't write to, or, on a cloud, a bucket name someone else already took. `plan` and `apply` find those.
 
 ## 3. `terraform plan`: preview the change
 
@@ -176,51 +183,48 @@ plan. Resource actions are indicated with the following symbols:
 
 Terraform will perform the following actions:
 
-  # google_storage_bucket.first will be created
-  + resource "google_storage_bucket" "first" {
-      + deletion_policy             = "DELETE"
-      + effective_labels            = {
-          + "goog-terraform-provisioned" = "true"
-          + "managed-by"                 = "terraform"
-          + "tutorial"                   = "core-workflow"
-        }
-      + force_destroy               = true
-      + id                          = (known after apply)
-      + labels                      = {
-          + "managed-by" = "terraform"
-          + "tutorial"   = "core-workflow"
-        }
-      + location                    = "US-CENTRAL1"
-      + name                        = "tf-tutorial-3fa9c1-first-bucket"
-      + project                     = (known after apply)
-      + public_access_prevention    = "enforced"
-      + self_link                   = (known after apply)
-      + storage_class               = "STANDARD"
-      + terraform_labels            = {
-          + "goog-terraform-provisioned" = "true"
-          + "managed-by"                 = "terraform"
-          + "tutorial"                   = "core-workflow"
-        }
-      + uniform_bucket_level_access = true
-      + url                         = (known after apply)
+  # local_file.config will be created
+  + resource "local_file" "config" {
+      + content              = (known after apply)
+      + content_base64sha256 = (known after apply)
       ...
+      + directory_permission = "0755"
+      + file_permission      = "0644"
+      + filename             = "./out/server.conf"
+      + id                   = (known after apply)
     }
 
-Plan: 1 to add, 0 to change, 0 to destroy.
+  # random_pet.server will be created
+  + resource "random_pet" "server" {
+      + id        = (known after apply)
+      + length    = 2
+      + separator = "-"
+    }
+
+  # terraform_data.release will be created
+  + resource "terraform_data" "release" {
+      + id     = (known after apply)
+      + input  = {
+          + version = "1.0"
+        }
+      + output = (known after apply)
+    }
+
+Plan: 3 to add, 0 to change, 0 to destroy.
 
 Changes to Outputs:
-  + bucket_url = (known after apply)
+  + config_file = "./out/server.conf"
+  + server_name = (known after apply)
 ```
 
 How to read it:
 
-- **`# google_storage_bucket.first will be created`**: the address, and what will happen to it.
-- **`+`** in front of each attribute: the value it will be created with. These include values you didn't write, such as `storage_class = "STANDARD"`, which are the provider's defaults. `location` shows up as `US-CENTRAL1` because GCS stores locations in upper case; the provider treats `us-central1` as the same value.
-- **`(known after apply)`**: values GCP decides at creation time, like the `id`. Terraform can't know them yet.
-- **`labels` vs. `effective_labels`**: `labels` is exactly what you wrote. `effective_labels` is what ends up on the bucket: your labels plus `goog-terraform-provisioned`, which the google provider adds to everything it creates so you can tell Terraform-managed resources apart in the Console. (`terraform_labels` is an intermediate view of the same thing; you can ignore it.)
-- **`Plan: 1 to add, 0 to change, 0 to destroy.`**: the summary line. Read it every time.
+- **`# random_pet.server will be created`**: the address, and what will happen to it.
+- **`+`** in front of each attribute: the value it will be created with. These include values you didn't write, such as `separator = "-"`, which are the provider's defaults.
+- **`(known after apply)`**: values decided at creation time. The pet name doesn't exist until `apply` generates it, so the file's `content`, which includes the name, isn't known either. On a cloud, IDs and IP addresses show up the same way.
+- **`Plan: 3 to add, 0 to change, 0 to destroy.`**: the summary line. Read it every time.
 
-`plan` makes read-only API calls (it checks what exists) and changes nothing. You can run it as often as you like.
+`plan` only reads (it checks what already exists) and changes nothing. You can run it as often as you like.
 
 ### The four symbols
 
@@ -244,7 +248,7 @@ terraform apply
 `apply` computes a fresh plan, shows it, and asks for confirmation:
 
 ```
-Plan: 1 to add, 0 to change, 0 to destroy.
+Plan: 3 to add, 0 to change, 0 to destroy.
 
 Do you want to perform these actions?
   Terraform will perform the actions described above.
@@ -252,33 +256,44 @@ Do you want to perform these actions?
 
   Enter a value: yes
 
-google_storage_bucket.first: Creating...
-google_storage_bucket.first: Creation complete after 2s [id=tf-tutorial-3fa9c1-first-bucket]
+terraform_data.release: Creating...
+terraform_data.release: Creation complete after 0s [id=84e968fb-09d9-1f8d-e617-26a201c0b906]
+random_pet.server: Creating...
+random_pet.server: Creation complete after 0s [id=romantic-hornet]
+local_file.config: Creating...
+local_file.config: Creation complete after 0s [id=bc4b5003b7d4e4862437586a3110c037cc08f177]
 
-Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
 
 Outputs:
 
-bucket_url = "gs://tf-tutorial-3fa9c1-first-bucket"
+config_file = "./out/server.conf"
+server_name = "romantic-hornet"
 ```
 
-Only the exact word `yes` approves the plan. Anything else cancels it.
+Only the exact word `yes` approves the plan. Anything else cancels it. Your pet name will differ; that's the point of `random_pet`.
+
+Notice the order: `local_file.config` waited for `random_pet.server`, because its content needs the name. You never wrote that order down. Terraform worked it out from the reference.
 
 Check that it's real, using a tool other than Terraform:
 
 ```bash
-gcloud storage buckets describe "gs://${TF_VAR_project_id}-first-bucket" \
-  --format='yaml(name,location,labels,public_access_prevention)'
+cat out/server.conf
+```
+
+```
+name=romantic-hornet
+owner=platform-team
 ```
 
 Then look at what `apply` left behind in the directory:
 
 ```bash
 ls -a
-# .  ..  .terraform  .terraform.lock.hcl  main.tf  terraform.tfstate
+# .  ..  .terraform  .terraform.lock.hcl  main.tf  out  terraform.tfstate
 ```
 
-`terraform.tfstate` is new. It's Terraform's record that `google_storage_bucket.first` in your code is the real bucket `tf-tutorial-3fa9c1-first-bucket`. **Never edit it by hand, and never commit it.** It can contain secrets, and it's the only link between your code and what's running. [State & Drift](../state/state-basics.md) covers it properly. The repo's `.gitignore` already excludes it.
+`terraform.tfstate` is new. It's Terraform's record that `random_pet.server` in your code is the name `romantic-hornet`, and that `local_file.config` is the file `./out/server.conf`. **Never edit it by hand, and never commit it.** It can contain secrets, and it's the only link between your code and what exists. [State & Drift](../state/state-basics.md) covers it properly. The repo's `.gitignore` already excludes it, and the `out/` directory too.
 
 Run `plan` again:
 
@@ -290,17 +305,17 @@ terraform plan
 No changes. Your infrastructure matches the configuration.
 ```
 
-That's the declarative model at work. The code and the real world agree, so there's nothing to do. Applying the same configuration twice is always safe.
+That's the declarative model at work. The code and the real world agree, so there's nothing to do. Applying the same configuration twice is always safe. It's also why the pet name stays `romantic-hornet`: it's random once, at creation, and state remembers it after that.
 
 ## 5. Change something
 
 ### An in-place update (`~`)
 
-Add object versioning to the bucket. In `main.tf`, inside the `google_storage_bucket` block, add:
+In `main.tf`, change the release version from `"1.0"` to `"1.1"`:
 
 ```hcl
-  versioning {
-    enabled = true
+  input = {
+    version = "1.1"
   }
 ```
 
@@ -309,23 +324,21 @@ terraform plan
 ```
 
 ```
-  # google_storage_bucket.first will be updated in-place
-  ~ resource "google_storage_bucket" "first" {
-        id                          = "tf-tutorial-3fa9c1-first-bucket"
-        name                        = "tf-tutorial-3fa9c1-first-bucket"
-        # (16 unchanged attributes hidden)
-
-      + versioning {
-          + enabled = true
+  # terraform_data.release will be updated in-place
+  ~ resource "terraform_data" "release" {
+        id     = "84e968fb-09d9-1f8d-e617-26a201c0b906"
+      ~ input  = {
+          ~ version = "1.0" -> "1.1"
         }
-
-        # (1 unchanged block hidden)
+      ~ output = {
+          - version = "1.0"
+        } -> (known after apply)
     }
 
 Plan: 0 to add, 1 to change, 0 to destroy.
 ```
 
-`~` means the same bucket gets modified. Its name, its objects, and everything else stay. Apply it:
+`~` means the same resource gets modified: its `id` stays. On a cloud, this is what changing a bucket's labels or a VM's metadata looks like. Apply it:
 
 ```bash
 terraform apply
@@ -333,10 +346,10 @@ terraform apply
 
 ### A replacement (`-/+`)
 
-Now change something that GCP can't change on an existing bucket. A bucket's location is fixed at creation. Change `location = var.region` to:
+Now change something that can't be changed on an existing resource. A pet name's length is fixed when it's generated. In the `random_pet` block, change `length = 2` to:
 
 ```hcl
-  location = "us-east1"
+  length = 3
 ```
 
 ```bash
@@ -344,20 +357,35 @@ terraform plan
 ```
 
 ```
-  # google_storage_bucket.first must be replaced
--/+ resource "google_storage_bucket" "first" {
-      ~ id                          = "tf-tutorial-3fa9c1-first-bucket" -> (known after apply)
-      ~ location                    = "US-CENTRAL1" -> "US-EAST1" # forces replacement
-        name                        = "tf-tutorial-3fa9c1-first-bucket"
-        ...
+  # local_file.config must be replaced
+-/+ resource "local_file" "config" {
+      ~ content              = <<-EOT
+            name=romantic-hornet
+            owner=platform-team
+        EOT -> (known after apply) # forces replacement
+      ...
+      ~ id                   = "bc4b5003b7d4e4862437586a3110c037cc08f177" -> (known after apply)
+        # (3 unchanged attributes hidden)
     }
 
-Plan: 1 to add, 0 to change, 1 to destroy.
+  # random_pet.server must be replaced
+-/+ resource "random_pet" "server" {
+      ~ id        = "romantic-hornet" -> (known after apply)
+      ~ length    = 2 -> 3 # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+Plan: 2 to add, 0 to change, 2 to destroy.
 ```
 
-**`# forces replacement`** marks the attribute responsible. Applying this would delete the bucket, including every object in it (`force_destroy = true` allows that), and create an empty one in `us-east1`. For a bucket holding model weights, that's an outage plus a multi-gigabyte re-upload.
+**`# forces replacement`** marks the attribute responsible. Read the two resources together:
 
-**Don't apply it.** Change `location` back to `var.region` and confirm the plan is clean again:
+- `random_pet.server` is replaced because its `length` changed. The old name is gone for good; the new one will be different.
+- `local_file.config` is replaced too, even though you didn't touch it. Its content includes the name, and a new name means new content.
+
+One edit, two destroyed resources. Here it costs nothing, but picture the same shape on a cloud: the name is a bucket name, and everything that references it gets rebuilt. For a bucket holding model weights, that's an outage plus a multi-gigabyte re-upload.
+
+**Don't apply it.** Change `length` back to `2` and confirm the plan is clean again:
 
 ```bash
 terraform plan   # No changes.
@@ -367,15 +395,33 @@ This is why you read every plan before you apply. A one-word edit can mean "dele
 
 ## 6. Drift: someone changes it by hand
 
-Terraform only knows about changes made through Terraform. Simulate a teammate "quickly fixing something" in the Console:
+Terraform only knows about changes made through Terraform. Simulate a teammate "quickly fixing something" by editing the file directly:
 
 ```bash
-gcloud storage buckets update "gs://${TF_VAR_project_id}-first-bucket" \
-  --update-labels=tutorial=hotfix-by-hand
+sed -i 's/owner=platform-team/owner=someone-else/' out/server.conf
 ```
 
 ```bash
 terraform plan
+```
+
+```
+  # local_file.config will be created
+  + resource "local_file" "config" {
+      + content              = <<-EOT
+            name=romantic-hornet
+            owner=platform-team
+        EOT
+      ...
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+`plan` refreshed the file before comparing. The `local` provider treats a file whose content no longer matches as gone, so the plan recreates it with the content your code says. To see only what changed outside Terraform, without planning a fix, use a refresh-only plan:
+
+```bash
+terraform plan -refresh-only
 ```
 
 ```
@@ -384,35 +430,15 @@ Note: Objects have changed outside of Terraform
 Terraform detected the following changes made outside of Terraform since the
 last "terraform apply" which may have affected this plan:
 
-  # google_storage_bucket.first has changed
-  ~ resource "google_storage_bucket" "first" {
-      ~ labels                      = {
-          ~ "tutorial"   = "core-workflow" -> "hotfix-by-hand"
-            # (1 unchanged element hidden)
-        }
-        ...
+  # local_file.config has been deleted
+  - resource "local_file" "config" {
+      ...
     }
-
-...
-
-  # google_storage_bucket.first will be updated in-place
-  ~ resource "google_storage_bucket" "first" {
-      ~ effective_labels            = {
-          ~ "tutorial"                   = "hotfix-by-hand" -> "core-workflow"
-            # (2 unchanged elements hidden)
-        }
-        id                          = "tf-tutorial-3fa9c1-first-bucket"
-      ~ labels                      = {
-          ~ "tutorial"   = "hotfix-by-hand" -> "core-workflow"
-            # (1 unchanged element hidden)
-        }
-        ...
-    }
-
-Plan: 0 to add, 1 to change, 0 to destroy.
 ```
 
-Terraform reports the drift first, then plans to put things back the way the code says. You have two honest choices:
+Cloud resources show drift in more detail: a hand-edited bucket label appears as `~ "tutorial" = "core-workflow" -> "hotfix-by-hand"`, and the plan offers an in-place update to put it back. You'll see that on a real bucket in [State & Drift](../state/state-basics.md).
+
+Either way, you have two honest choices:
 
 - **The hand change was wrong**: `terraform apply` reverts it.
 - **The hand change was right**: update `main.tf` to match, so code and reality agree again.
@@ -438,19 +464,19 @@ If the state changed after the plan was saved, `apply tfplan` refuses to run and
 ## 8. Outputs
 
 ```bash
-terraform output                  # every output
-terraform output -raw bucket_url  # one value, without quotes, for use in scripts
+terraform output                   # every output
+terraform output -raw config_file  # one value, without quotes, for use in scripts
 ```
 
 ```bash
-gcloud storage ls "$(terraform output -raw bucket_url)"   # an empty bucket lists nothing
+cat "$(terraform output -raw config_file)"
 ```
 
 Outputs are how one piece of infrastructure hands values to scripts, CI, or other Terraform configurations.
 
 ## Checkpoint: run the workflow without a script
 
-Do this checkpoint **before step 9**, while the bucket still exists. Try each task before opening its answer. The goal isn't to memorize commands; it's to predict what Terraform will do, verify that prediction in the plan, and stop when the plan is unsafe.
+Do this checkpoint **before step 9**, while the resources still exist. Try each task before opening its answer. The goal isn't to memorize commands; it's to predict what Terraform will do, verify that prediction in the plan, and stop when the plan is unsafe.
 
 ### 1. Predict the plan
 
@@ -459,11 +485,11 @@ For each change, decide whether the plan will show `+` (create), `~` (update in 
 | Change | Your prediction |
 |---|---|
 | Run `terraform plan` without changing anything | |
-| Add `environment = "dev"` to the bucket's `labels` | |
-| Change the bucket's `name` suffix from `-first-bucket` to `-first-bucket-v2` | |
-| Delete both the `google_storage_bucket.first` block and its `bucket_url` output | |
+| Add `channel = "stable"` to the `release` resource's `input` | |
+| Change `random_pet`'s `separator` from the default `"-"` to `"_"` (add `separator = "_"`) | |
+| Delete the `terraform_data.release` block | |
 
-Verify the first three with `terraform plan`, one at a time. **Do not apply** the name change: a bucket name is immutable, so that plan is destructive. Restore `main.tf` after each experiment and confirm that the final plan is clean.
+Verify each one with `terraform plan`, one at a time. **Do not apply** the separator change. Restore `main.tf` after each experiment and confirm that the final plan is clean.
 
 <details>
 <summary>Answer</summary>
@@ -471,17 +497,17 @@ Verify the first three with `terraform plan`, one at a time. **Do not apply** th
 | Change | Expected result | Summary |
 |---|---|---|
 | No configuration change | no changes | `0 to add, 0 to change, 0 to destroy` |
-| Add a label | `~` update in place | `0 to add, 1 to change, 0 to destroy` |
-| Change the bucket name | `-/+` replacement | `1 to add, 0 to change, 1 to destroy` |
-| Delete the resource and its output | `-` destroy | `0 to add, 0 to change, 1 to destroy` |
+| Add a key to `input` | `~` update in place | `0 to add, 1 to change, 0 to destroy` |
+| Change the separator | `-/+` for both `random_pet.server` and `local_file.config` | `2 to add, 0 to change, 2 to destroy` |
+| Delete the `release` block | `-` destroy | `0 to add, 0 to change, 1 to destroy` |
 
-Terraform tracks the bucket at the address `google_storage_bucket.first`. Changing an ordinary mutable argument updates the object at that address; changing an immutable argument replaces it; removing the address from configuration tells Terraform the object is no longer wanted.
+Terraform tracks each resource at its address, such as `random_pet.server`. Changing an updatable argument modifies the object at that address; changing a fixed one replaces it, along with anything whose values depend on it; removing the address from configuration tells Terraform the object is no longer wanted.
 
 </details>
 
 ### 2. Make a change without copying
 
-Add an input variable named `environment` with type `string` and default value `"dev"`. Use it to add an `environment` label to the bucket.
+Add an input variable named `environment` with type `string` and default value `"dev"`. Use it to add an `environment=` line to the config file's content.
 
 Then run, in order:
 
@@ -502,21 +528,17 @@ One valid implementation is:
 
 ```hcl
 variable "environment" {
-  description = "Environment label for the tutorial bucket."
+  description = "Environment written into the config file."
   type        = string
   default     = "dev"
 }
 ```
 
 ```hcl
-  labels = {
-    managed-by  = "terraform"
-    tutorial    = "core-workflow"
-    environment = var.environment
-  }
+  content = "name=${random_pet.server.id}\nowner=${var.owner}\nenvironment=${var.environment}\n"
 ```
 
-The first plan adds a label with an in-place update. After applying it, a normal plan is clean. `terraform plan -var environment=staging` temporarily overrides the default and proposes another in-place label update; because you don't apply it, both the configuration default and the real bucket remain `dev`.
+The first plan replaces `local_file.config` (`-/+`), because a local file can't be edited in place: any content change means a new file. That's acceptable here, since the file holds nothing that isn't in the code. The pet name stays the same, because nothing about `random_pet.server` changed. After applying, a normal plan is clean. `terraform plan -var environment=staging` temporarily overrides the default and proposes another replacement; because you don't apply it, both the configuration default and the real file remain `dev`.
 
 </details>
 
@@ -525,27 +547,35 @@ The first plan adds a label with an in-place update. After applying it, a normal
 Temporarily change the output reference from:
 
 ```hcl
-value = google_storage_bucket.first.url
+value = local_file.config.filename
 ```
 
 to the misspelled address:
 
 ```hcl
-value = google_storage_bucket.frist.url
+value = local_file.confg.filename
 ```
 
-Run `terraform validate`. Before fixing it, identify all three parts of the address in the error: resource type, local name, and attribute. Restore `first`, then validate again.
+Run `terraform validate`. Before fixing it, identify all three parts of the address in the error: resource type, local name, and attribute. Restore `config`, then validate again.
 
 <details>
 <summary>Answer</summary>
 
-Terraform reports a reference to an undeclared resource because `google_storage_bucket.frist` doesn't exist in this module:
+```
+Error: Reference to undeclared resource
 
-- `google_storage_bucket` is the resource type.
-- `frist` is the misspelled local name; the declared name is `first`.
-- `url` is the exported attribute the output wants to read.
+  on main.tf line 49, in output "config_file":
+  49:   value       = local_file.confg.filename
 
-The fix is to restore `google_storage_bucket.first.url`. `terraform validate` should then succeed without contacting GCP.
+A managed resource "local_file" "confg" has not been declared in the root
+module.
+```
+
+- `local_file` is the resource type.
+- `confg` is the misspelled local name; the declared name is `config`.
+- `filename` is the attribute the output wants to read.
+
+The fix is to restore `local_file.config.filename`. `terraform validate` should then succeed.
 
 </details>
 
@@ -561,9 +591,9 @@ Answer these in your own words:
 <details>
 <summary>Answer</summary>
 
-1. Configuration describes the desired result; state maps Terraform addresses such as `google_storage_bucket.first` to real remote object IDs and records known attributes. Terraform refreshes those objects and compares all three views to build a plan.
-2. After the first apply, configuration, state, and the real API object agree. Terraform is declarative, so it has nothing else to do.
-3. Stop. Read the attribute marked `# forces replacement`, decide whether losing and recreating the object is acceptable, and revert or redesign the change if it isn't. Don't apply merely because the edit looked small.
+1. Configuration describes the desired result; state maps Terraform addresses such as `random_pet.server` to the real objects, like the name `romantic-hornet`, and records their known attributes. Without state, Terraform couldn't even tell you which random name it generated. It refreshes those objects and compares all three views to build a plan.
+2. After the first apply, configuration, state, and the real objects agree. Terraform is declarative, so it has nothing else to do.
+3. Stop. Read the attribute marked `# forces replacement`, check what else is replaced because it depends on that resource, decide whether losing and recreating them is acceptable, and revert or redesign the change if it isn't. Don't apply merely because the edit looked small.
 4. A saved plan contains the exact proposed values and can include sensitive data even when the terminal display hides it. Don't commit or casually share plan files.
 
 </details>
@@ -583,12 +613,23 @@ terraform destroy
 ```
 
 ```
-  # google_storage_bucket.first will be destroyed
-  - resource "google_storage_bucket" "first" {
+  # local_file.config will be destroyed
+  - resource "local_file" "config" {
       ...
     }
 
-Plan: 0 to add, 0 to change, 1 to destroy.
+  # random_pet.server will be destroyed
+  - resource "random_pet" "server" {
+      - id        = "romantic-hornet" -> null
+      ...
+    }
+
+  # terraform_data.release will be destroyed
+  - resource "terraform_data" "release" {
+      ...
+    }
+
+Plan: 0 to add, 0 to change, 3 to destroy.
 
 Do you really want to destroy all resources?
   Terraform will destroy all your managed infrastructure, as shown above.
@@ -596,34 +637,39 @@ Do you really want to destroy all resources?
 
   Enter a value: yes
 
-google_storage_bucket.first: Destroying... [id=tf-tutorial-3fa9c1-first-bucket]
-google_storage_bucket.first: Destruction complete after 1s
+terraform_data.release: Destroying... [id=84e968fb-09d9-1f8d-e617-26a201c0b906]
+terraform_data.release: Destruction complete after 0s
+local_file.config: Destroying... [id=bc4b5003b7d4e4862437586a3110c037cc08f177]
+local_file.config: Destruction complete after 0s
+random_pet.server: Destroying... [id=romantic-hornet]
+random_pet.server: Destruction complete after 0s
 
-Destroy complete! Resources: 1 destroyed.
+Destroy complete! Resources: 3 destroyed.
 ```
 
-`destroy` removes **every resource in this configuration's state**, and nothing else. It never touches resources Terraform didn't create, even in the same project.
+The order is the reverse of creation: the file goes before the name it depends on.
+
+`destroy` removes **every resource in this configuration's state**, and nothing else. It deleted `server.conf`, but left the now-empty `out/` directory, because Terraform didn't create that as a resource. On a cloud, it likewise never touches resources it didn't create, even in the same project.
 
 Preview a destroy without doing it with `terraform plan -destroy`. That's a good habit before running `destroy` against anything that matters.
 
 ## Best practices
 
-- **Read the summary line and look for `-` and `-/+`** in every plan before typing `yes`. Look for `# forces replacement` to see why.
+- **Read the summary line and look for `-` and `-/+`** in every plan before typing `yes`. Look for `# forces replacement` to see why, and for other resources replaced along with it.
 - **Never edit infrastructure by hand.** If you must during an incident, bring the code back in line straight after.
 - **Commit `.terraform.lock.hcl`; never commit `.terraform/`, `*.tfstate`, or saved plans.**
 - **Run `terraform fmt` and `terraform validate` before every commit.** They're instant, and CI will run them anyway (see [Testing & Code Quality](../team-workflow/testing-and-quality.md)).
 - **Use `plan -out` + `apply <planfile>`** whenever a plan is reviewed by someone else or applied by automation.
-- **Name buckets with the project ID as a prefix.** Bucket names are global across every GCP customer.
 
 ## Clean up
 
-If you skipped step 9, destroy the bucket now:
+If you skipped step 9, destroy everything now:
 
 ```bash
 terraform destroy
 ```
 
-An empty bucket costs nothing, but tear down what you create at the end of every chapter anyway. It's the habit that keeps GPU node pools from running all weekend in Part 5.
+Nothing here costs money, but tear down what you create at the end of every chapter anyway. It's the habit that keeps GPU node pools from running all weekend in Part 5.
 
 ---
 

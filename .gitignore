@@ -15,6 +15,7 @@ Thumbs.db
 *.tfstate.*
 crash.log
 crash.*.log
+examples/**/out/
 *.tfplan
 tfplan
 
