@@ -1,9 +1,9 @@
 locals {
   # Name things once, use the names everywhere.
-  name_prefix = "${var.project_id}-${var.environment}"
-  bucket_name = "${local.name_prefix}-${var.model_bucket.name_suffix}"
+  name_prefix = "${var.team}-${var.environment}"
+  config_name = "${local.name_prefix}-${var.serving.name_suffix}"
 
-  # Labels every resource gets (applied through the provider's default_labels).
+  # Labels for everything this configuration creates.
   # Keys in extra_labels can't override these, because these come last.
   labels = merge(var.extra_labels, {
     environment = var.environment
@@ -12,26 +12,16 @@ locals {
   })
 }
 
-resource "google_storage_bucket" "models" {
-  name          = local.bucket_name
-  location      = var.region
-  storage_class = var.model_bucket.storage_class
+resource "local_file" "serving" {
+  filename             = "${path.module}/out/${local.config_name}.json"
+  file_permission      = "0644"
+  directory_permission = "0755"
 
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
-
-  versioning {
-    enabled = var.model_bucket.versioning
-  }
-
-  lifecycle_rule {
-    condition {
-      num_newer_versions = var.model_bucket.old_versions_to_keep
-      with_state         = "ARCHIVED"
-    }
-    action {
-      type = "Delete"
-    }
-  }
+  content = jsonencode({
+    name       = local.config_name
+    gpu_type   = var.serving.gpu_type
+    replicas   = var.serving.replicas
+    max_tokens = var.serving.max_tokens
+    labels     = local.labels
+  })
 }

@@ -14,7 +14,7 @@ cp terraform.tfvars.example terraform.tfvars
 terraform init
 ```
 
-The example creates a bucket for model weights. Its name, labels, and settings all come from variables, so the same code can serve any environment or team.
+The example writes a config file for a model-serving deployment. Its name, labels, and settings all come from variables, so the same code can serve any environment or team. On GCP, the same inputs would name and label a bucket or a GKE node pool instead of a file.
 
 ## How the three fit together
 
@@ -33,9 +33,9 @@ config:
 flowchart LR
     caller(["🧑‍💻 you, CI,<br/>or a calling module"])
     var["📥 variables<br/>var.environment"]
-    loc["🧮 locals<br/>local.bucket_name"]
-    res["🧱 resources<br/>google_storage_bucket.models"]
-    out["📤 outputs<br/>bucket_url"]
+    loc["🧮 locals<br/>local.config_name"]
+    res["🧱 resources<br/>local_file.serving"]
+    out["📤 outputs<br/>config_file"]
 
     caller -->|"tfvars · -var · TF_VAR_"| var
     var --> loc
@@ -56,8 +56,8 @@ flowchart LR
 | | Declared with | Referred to as | Set by |
 |---|---|---|---|
 | Input variable | `variable "environment" { }` | `var.environment` | the caller |
-| Local value | `locals { bucket_name = ... }` | `local.bucket_name` | the configuration itself |
-| Output | `output "bucket_url" { }` | `terraform output bucket_url`, or `module.<name>.bucket_url` | the configuration itself |
+| Local value | `locals { config_name = ... }` | `local.config_name` | the configuration itself |
+| Output | `output "config_file" { }` | `terraform output config_file`, or `module.<name>.config_file` | the configuration itself |
 
 ## Input variables
 
@@ -87,7 +87,7 @@ variable "environment" {
 | `nullable` | `false` means the caller can't pass `null`. Mostly useful in modules. |
 | `ephemeral` | The value is never written to state or plan files. Covered in [Secret Manager & Sensitive Values](../gcp-foundations/secrets.md). |
 
-**Required or optional?** Give a default only when there's a value that's right for most callers, like `region = "us-central1"`. Leave it off when a wrong guess would be dangerous. Here `environment` and `team` have no default, so nobody accidentally creates a "dev" bucket in production.
+**Required or optional?** Give a default only when there's a value that's right for most callers, like `region = "us-central1"`. Leave it off when a wrong guess would be dangerous. Here `environment` and `team` have no default, so nobody accidentally deploys a "dev" config to production.
 
 If a required variable has no value, Terraform asks for it:
 
@@ -103,8 +103,8 @@ In CI, where nobody is there to type, use `-input=false` and the same situation 
 ```
 Error: No value for required variable
 
-  on variables.tf line 12:
-  12: variable "environment" {
+  on variables.tf line 1:
+   1: variable "environment" {
 
 The root module input variable "environment" is not set, and has no default
 value. Use a -var or -var-file command line argument to provide a value for
@@ -117,7 +117,7 @@ Simple values use `string`, `number`, `bool`, `list(string)`, or `map(string)`:
 
 ```hcl
 variable "extra_labels" {
-  description = "Additional labels to put on every resource."
+  description = "Additional labels to record in the config."
   type        = map(string)
   default     = {}
 }
@@ -126,13 +126,13 @@ variable "extra_labels" {
 When several settings belong together, use an **`object`** with **`optional()`** fields. Callers set only what they care about, and every field they leave out gets its default:
 
 ```hcl
-variable "model_bucket" {
-  description = "Settings for the model-weights bucket. Every field is optional."
+variable "serving" {
+  description = "Settings for the model-serving config. Every field is optional."
   type = object({
-    name_suffix          = optional(string, "models")
-    storage_class        = optional(string, "STANDARD")
-    versioning           = optional(bool, true)
-    old_versions_to_keep = optional(number, 3)
+    name_suffix = optional(string, "serving")
+    gpu_type    = optional(string, "nvidia-l4")
+    replicas    = optional(number, 1)
+    max_tokens  = optional(number, 4096)
   })
   default = {}
   ...
@@ -142,42 +142,42 @@ variable "model_bucket" {
 The example's `terraform.tfvars` sets only two of the four fields:
 
 ```hcl
-model_bucket = {
-  storage_class        = "STANDARD"
-  old_versions_to_keep = 5
-  # name_suffix and versioning are left out: their optional() defaults apply.
+serving = {
+  replicas   = 2
+  max_tokens = 8192
+  # name_suffix and gpu_type are left out: their optional() defaults apply.
 }
 ```
 
 `terraform console` shows the value Terraform actually uses:
 
 ```
-> var.model_bucket
+> var.serving
 {
-  "name_suffix" = "models"
-  "old_versions_to_keep" = 5
-  "storage_class" = "STANDARD"
-  "versioning" = true
+  "gpu_type" = "nvidia-l4"
+  "max_tokens" = 8192
+  "name_suffix" = "serving"
+  "replicas" = 2
 }
 ```
 
 Type checks catch mistakes before anything is planned:
 
 ```bash
-terraform plan -var 'model_bucket={old_versions_to_keep="five"}'
+terraform plan -var 'serving={replicas="two"}'
 ```
 
 ```
 Error: Invalid value for input variable
 
-  on variables.tf line 33:
-  33: variable "model_bucket" {
+  on variables.tf line 22:
+  22: variable "serving" {
 
-Unsuitable value for var.model_bucket set using -var="model_bucket=...": a
-number is required.
+Unsuitable value for var.serving set using -var="serving=...": a number is
+required.
 ```
 
-> ⚠️ **Misspelled fields are silently dropped.** Passing `model_bucket = { storage = "COLDLINE" }` (instead of `storage_class`) is **not** an error. Converting to the object type discards attributes it doesn't know, so you get `STANDARD` and no warning. Check the plan, or `terraform console`, when an object setting seems to be ignored.
+> ⚠️ **Misspelled fields are silently dropped.** Passing `serving = { gpu = "nvidia-h100-80gb" }` (instead of `gpu_type`) is **not** an error. Converting to the object type discards attributes it doesn't know, so you get `nvidia-l4` and no warning. Check the plan, or `terraform console`, when an object setting seems to be ignored.
 
 ### Validation rules
 
@@ -185,11 +185,11 @@ number is required.
 
 ```hcl
 variable "team" {
-  description = "Owning team, used as a label value."
+  description = "Owning team, used in names and as a label value."
   type        = string
 
   validation {
-    # GCP label values: lowercase letters, digits, - and _, at most 63 characters.
+    # The same rule GCP applies to label values: lowercase letters, digits, - and _, at most 63 characters.
     condition     = can(regex("^[a-z0-9_-]{1,63}$", var.team))
     error_message = "team must be 1-63 characters: lowercase letters, digits, - or _."
   }
@@ -203,17 +203,17 @@ terraform plan -var 'team=ML Platform'
 ```
 Error: Invalid value for variable
 
-  on variables.tf line 22:
-  22: variable "team" {
+  on variables.tf line 11:
+  11: variable "team" {
     ├────────────────
     │ var.team is "ML Platform"
 
 team must be 1-63 characters: lowercase letters, digits, - or _.
 
-This was checked by the validation rule at variables.tf:26,3-13.
+This was checked by the validation rule at variables.tf:15,3-13.
 ```
 
-Without the rule, this value would get through `plan` and fail halfway through `apply` with an API error about label values. Validation moves the failure to the earliest point, with a message that says how to fix it. Good candidates are anything GCP is strict about: names, label values, region lists, allowed machine or GPU types.
+Without the rule, a local file would happily accept `ML Platform`, and the mistake would surface later: on GCP, halfway through `apply`, as an API error about label values. Validation moves the failure to the earliest point, with a message that says how to fix it. Good candidates are anything a platform is strict about: names, label values, region lists, allowed machine or GPU types. `serving.gpu_type` in the example has a rule like that too.
 
 `can(...)` turns an error into `false`, which is how `regex` (which fails when nothing matches) becomes a condition. More functions are in [Expressions & Functions](expressions.md).
 
@@ -272,7 +272,7 @@ How each source is typically used:
 | Source | Typical use |
 |---|---|
 | `default` | a sensible value for most callers |
-| `TF_VAR_project_id` | per-person or per-shell values, like your sandbox project (from [Setup](../getting-started/setup.md)) |
+| `TF_VAR_project_id` | per-person or per-shell values, like your GCP sandbox project from Part 2 on |
 | `terraform.tfvars` | this directory's values. Loaded automatically. **Git-ignored** in this repo |
 | `*.auto.tfvars` | also loaded automatically. Handy when a tool generates a values file |
 | `-var-file=prod.tfvars` | choosing an environment's values explicitly. [Environments](../modules/environments.md) builds on this |
@@ -283,8 +283,6 @@ Why is `terraform.tfvars` git-ignored? It tends to hold project IDs, and sometim
 ```hcl
 # Copy to terraform.tfvars (git-ignored) and edit:
 #   cp terraform.tfvars.example terraform.tfvars
-#
-# project_id and region come from TF_VAR_project_id / TF_VAR_region (see Setup).
 
 environment = "dev"
 team        = "ml-platform"
@@ -300,10 +298,10 @@ A **local value** names an expression so you can use it in many places, and chan
 ```hcl
 locals {
   # Name things once, use the names everywhere.
-  name_prefix = "${var.project_id}-${var.environment}"
-  bucket_name = "${local.name_prefix}-${var.model_bucket.name_suffix}"
+  name_prefix = "${var.team}-${var.environment}"
+  config_name = "${local.name_prefix}-${var.serving.name_suffix}"
 
-  # Labels every resource gets (applied through the provider's default_labels).
+  # Labels for everything this configuration creates.
   # Keys in extra_labels can't override these, because these come last.
   labels = merge(var.extra_labels, {
     environment = var.environment
@@ -317,17 +315,45 @@ locals {
 - Locals can refer to variables, resources, data sources, and other locals, in any order. Terraform works out the dependencies.
 - **Callers can't set a local.** That's the difference from a variable: a variable is part of your interface, a local is an implementation detail.
 
-`local.labels` is used as the provider's `default_labels` in [`providers.tf`](../../examples/core-language/variables-and-outputs/providers.tf), so every resource gets it:
+`local.config_name` names the file, and `local.labels` goes into its content:
+
+```hcl
+resource "local_file" "serving" {
+  filename = "${path.module}/out/${local.config_name}.json"
+  ...
+  content = jsonencode({
+    name       = local.config_name
+    gpu_type   = var.serving.gpu_type
+    replicas   = var.serving.replicas
+    max_tokens = var.serving.max_tokens
+    labels     = local.labels
+  })
+}
+```
+
+Every value here is known before anything is created, so the plan shows the whole file:
 
 ```
-      + effective_labels            = {
-          + "cost-center"                = "research"
-          + "environment"                = "dev"
-          + "goog-terraform-provisioned" = "true"
-          + "managed-by"                 = "terraform"
-          + "team"                       = "ml-platform"
-        }
+  + resource "local_file" "serving" {
+      + content              = jsonencode(
+            {
+              + gpu_type   = "nvidia-l4"
+              + labels     = {
+                  + cost-center = "research"
+                  + environment = "dev"
+                  + managed-by  = "terraform"
+                  + team        = "ml-platform"
+                }
+              + max_tokens = 8192
+              + name       = "ml-platform-dev-serving"
+              + replicas   = 2
+            }
+        )
+      ...
+      + filename             = "./out/ml-platform-dev-serving.json"
 ```
+
+On GCP you'd pass `local.labels` to the provider's `default_labels` instead, and every resource would get it ([Connecting to GCP](../state/google-provider.md#configuring-the-google-provider)).
 
 **When to use a local:**
 
@@ -342,40 +368,40 @@ locals {
 An **output** exposes a value after `apply`. From [`outputs.tf`](../../examples/core-language/variables-and-outputs/outputs.tf):
 
 ```hcl
-output "bucket_url" {
-  description = "gs:// URL of the model-weights bucket, for training and serving jobs."
-  value       = google_storage_bucket.models.url
+output "config_file" {
+  description = "Path of the generated config file, for scripts that deploy it."
+  value       = local_file.serving.filename
 }
 
-output "model_bucket_settings" {
-  description = "The model_bucket variable after optional() defaults were filled in."
-  value       = var.model_bucket
+output "serving_settings" {
+  description = "The serving variable after optional() defaults were filled in."
+  value       = var.serving
 }
 ```
 
 Outputs have three audiences:
 
 - **You**, after `apply`: the values you'd otherwise go to the Console for.
-- **Scripts and CI**, through `terraform output`: a deploy job reads the bucket URL instead of hard-coding it.
+- **Scripts and CI**, through `terraform output`: a deploy job reads the config path, or on GCP a bucket URL, instead of hard-coding it.
 - **Other Terraform code**: a module's outputs are its return values (`module.storage.bucket_url`), as you'll see in [Writing Modules](../modules/writing-modules.md).
 
 They're printed at the end of every `apply`, and shown as changes in the plan:
 
 ```
 Changes to Outputs:
-  + bucket_name           = "tf-tutorial-3fa9c1-dev-models"
-  + bucket_url            = (known after apply)
-  + labels                = {
+  + config_file      = "./out/ml-platform-dev-serving.json"
+  + config_name      = "ml-platform-dev-serving"
+  + labels           = {
       + cost-center = "research"
       + environment = "dev"
       + managed-by  = "terraform"
       + team        = "ml-platform"
     }
-  + model_bucket_settings = {
-      + name_suffix          = "models"
-      + old_versions_to_keep = 5
-      + storage_class        = "STANDARD"
-      + versioning           = true
+  + serving_settings = {
+      + gpu_type    = "nvidia-l4"
+      + max_tokens  = 8192
+      + name_suffix = "serving"
+      + replicas    = 2
     }
 ```
 
@@ -383,9 +409,9 @@ Changes to Outputs:
 
 ```bash
 terraform output                     # all outputs, human-readable
-terraform output bucket_name         # one output, as an HCL value: "tf-tutorial-3fa9c1-dev-models"
-terraform output -raw bucket_name    # one string, no quotes: for shell scripts
-terraform output -json labels        # one output as JSON: for jq and other tools
+terraform output config_name         # one output, as an HCL value: "ml-platform-dev-serving"
+terraform output -raw config_file     # one string, no quotes: for shell scripts
+terraform output -json labels         # one output as JSON: for jq and other tools
 ```
 
 ```
@@ -393,9 +419,9 @@ $ terraform output -json labels
 {"cost-center":"research","environment":"dev","managed-by":"terraform","team":"ml-platform"}
 ```
 
-Use `-raw` for single strings in shell commands, as you did with `cat "$(terraform output -raw readme_path)"` in [Anatomy of HCL](../getting-started/hcl-anatomy.md). Use `-json` for anything structured. Outputs are read from **state**, so they only exist after an `apply`, and they don't call GCP.
+Use `-raw` for single strings in shell commands, as you did with `cat "$(terraform output -raw readme_path)"` in [Anatomy of HCL](../getting-started/hcl-anatomy.md). Use `-json` for anything structured. Outputs are read from **state**, so they only exist after an `apply`, and reading them never touches the real resources.
 
-**What makes a good output:** values someone downstream needs (names, URLs, IDs, service account emails), each with a `description`. Don't output whole resources "just in case". Every output is a promise to its readers, and removing one later can break them.
+**What makes a good output:** values someone downstream needs (names, paths, URLs, IDs, service account emails), each with a `description`. Don't output whole resources "just in case". Every output is a promise to its readers, and removing one later can break them.
 
 ## Sensitive values
 
@@ -403,7 +429,7 @@ Some values shouldn't appear on screen or in CI logs: API tokens, passwords, pri
 
 Values become sensitive in two ways:
 
-- **The provider marks an attribute sensitive.** That's why `google_storage_bucket_object`'s `content` shows as `(sensitive value)` in a plan: the provider can't know whether a file's contents are secret, so it assumes they might be.
+- **The provider marks an attribute sensitive.** The `local` provider has a variant of `local_file` for exactly this, `local_sensitive_file`, whose `content` the plan shows as `(sensitive value)`. On GCP, `google_storage_bucket_object`'s `content` is hidden the same way: the provider can't know whether a file's contents are secret, so it assumes they might be.
 - **You mark a variable or output** with `sensitive = true`.
 
 Sensitivity **follows the value**. Anything computed from a sensitive value is sensitive too, and Terraform won't let it leak out through an unmarked output:
@@ -460,32 +486,36 @@ hf_abc123
 terraform plan     # Plan: 1 to add, 0 to change, 0 to destroy.
 terraform apply
 terraform output
-gcloud storage buckets describe "$(terraform output -raw bucket_url)" --format="yaml(name,default_storage_class,labels)"
+cat "$(terraform output -raw config_file)"
 ```
 
-Then try another environment without touching the files, and read the plan. Changing `environment` changes the bucket's name, so the plan is a replacement:
+```
+{"gpu_type":"nvidia-l4","labels":{"cost-center":"research","environment":"dev","managed-by":"terraform","team":"ml-platform"},"max_tokens":8192,"name":"ml-platform-dev-serving","replicas":2}
+```
+
+Then try another environment without touching the files, and read the plan. Changing `environment` changes the config's name, so the plan is a replacement:
 
 ```bash
 terraform plan -var environment=staging
 ```
 
 ```
-  # google_storage_bucket.models must be replaced
--/+ resource "google_storage_bucket" "models" {
+  # local_file.serving must be replaced
+-/+ resource "local_file" "serving" {
       ...
-      ~ name                        = "tf-tutorial-3fa9c1-dev-models" -> "tf-tutorial-3fa9c1-staging-models" # forces replacement
+      ~ filename             = "./out/ml-platform-dev-serving.json" -> "./out/ml-platform-staging-serving.json" # forces replacement
       ...
 
 Plan: 1 to add, 0 to change, 1 to destroy.
 ```
 
-That's not how you'd run two environments for real: both would share one state, so switching would destroy the other. [Environments](../modules/environments.md) shows the right way.
+On GCP, the same change would rename, and therefore replace, a bucket full of data. And it's not how you'd run two environments for real: both would share one state, so switching would destroy the other. [Environments](../modules/environments.md) shows the right way.
 
 ## Checkpoint
 
 1. `TF_VAR_environment=dev`, `terraform.tfvars` says `staging`, and the command uses `-var environment=prod`. Which value wins?
 2. Does `sensitive = true` keep a value out of state? What protection does it actually provide?
-3. Decide whether each belongs in a variable, local, or output: caller-selected region; a computed naming prefix reused internally; the created bucket URL consumed by a script.
+3. Decide whether each belongs in a variable, local, or output: caller-selected GPU type; a computed naming prefix reused internally; the generated config path consumed by a deploy script.
 
 <details>
 <summary>Answer</summary>
@@ -500,7 +530,7 @@ That's not how you'd run two environments for real: both would share one state, 
 
 - **Give every variable a `description` and a `type`.** They're your configuration's documentation, and `type` catches mistakes before planning.
 - **No default for values that are dangerous to guess**: environment, project, anything that names production.
-- **Validate what GCP is strict about**, so bad input fails at `plan` with your message instead of mid-`apply` with an API error.
+- **Validate what the platform is strict about**, so bad input fails at `plan` with your message instead of mid-`apply` with an API error.
 - **Group related settings into an `object` with `optional()` defaults** rather than many loose variables. Remember that unknown fields are dropped silently.
 - **Commit `terraform.tfvars.example`, not `terraform.tfvars`.**
 - **Use locals for names and labels**, so the convention lives in one place.

@@ -1,19 +1,19 @@
-output "bucket_name" {
-  description = "Name of the model-weights bucket."
-  value       = google_storage_bucket.models.name
+output "config_name" {
+  description = "Name of the serving config."
+  value       = local.config_name
 }
 
-output "bucket_url" {
-  description = "gs:// URL of the model-weights bucket, for training and serving jobs."
-  value       = google_storage_bucket.models.url
+output "config_file" {
+  description = "Path of the generated config file, for scripts that deploy it."
+  value       = local_file.serving.filename
 }
 
 output "labels" {
-  description = "Labels applied to every resource."
+  description = "Labels recorded in the config."
   value       = local.labels
 }
 
-output "model_bucket_settings" {
-  description = "The model_bucket variable after optional() defaults were filled in."
-  value       = var.model_bucket
+output "serving_settings" {
+  description = "The serving variable after optional() defaults were filled in."
+  value       = var.serving
 }
