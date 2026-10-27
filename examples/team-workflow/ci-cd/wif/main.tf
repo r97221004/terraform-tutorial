@@ -21,25 +21,62 @@ resource "google_iam_workload_identity_pool" "github" {
   display_name              = "GitHub Actions"
 }
 
-resource "google_iam_workload_identity_pool_provider" "github" {
+resource "google_iam_workload_identity_pool_provider" "plan" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
-  workload_identity_pool_provider_id = "github-oidc"
-  display_name                       = "GitHub OIDC"
+  workload_identity_pool_provider_id = "github-plan"
+  display_name                       = "GitHub Terraform plan"
 
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
 
-  # Claims from GitHub's token, copied into attributes IAM can match on.
+  # Build a short, unique audit subject from immutable/run claims instead of
+  # GitHub's default `sub`, whose format varies by repository creation date.
   attribute_mapping = {
-    "google.subject"         = "assertion.sub"
-    "attribute.repository"   = "assertion.repository"
-    "attribute.ref"          = "assertion.ref"
-    "attribute.workflow_ref" = "assertion.job_workflow_ref"
+    "google.subject"          = "assertion.repository_id + ':' + assertion.run_id"
+    "attribute.access"        = "'plan'"
+    "attribute.repository_id" = "assertion.repository_id"
+    "attribute.workflow_ref"  = "assertion.workflow_ref"
   }
 
-  # Without this, ANY repository on GitHub could exchange its token here.
-  attribute_condition = "assertion.repository == '${var.github_repository}'"
+  # Only the two reviewed workflow paths in this exact repository may exchange
+  # a token. PR plans are still read-only at both the project and state bucket.
+  attribute_condition = <<-EOT
+    assertion.repository_id == '${var.github_repository_id}' &&
+    (assertion.workflow_ref.startsWith('${var.github_repository}/.github/workflows/terraform.yml@') ||
+     assertion.workflow_ref.startsWith('${var.github_repository}/.github/workflows/drift.yml@')) &&
+    (assertion.event_name == 'pull_request' ||
+     (assertion.event_name == 'push' && assertion.ref == 'refs/heads/main') ||
+     assertion.event_name == 'schedule' ||
+     assertion.event_name == 'workflow_dispatch')
+  EOT
+}
+
+resource "google_iam_workload_identity_pool_provider" "apply" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github-apply"
+  display_name                       = "GitHub Terraform apply"
+
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+
+  attribute_mapping = {
+    "google.subject"          = "assertion.repository_id + ':' + assertion.run_id"
+    "attribute.access"        = "'apply'"
+    "attribute.repository_id" = "assertion.repository_id"
+    "attribute.workflow_ref"  = "assertion.workflow_ref"
+  }
+
+  # The apply provider accepts only the trusted workflow from main, after its
+  # protected production environment has been approved. No `sub` parsing.
+  attribute_condition = <<-EOT
+    assertion.repository_id == '${var.github_repository_id}' &&
+    assertion.workflow_ref == '${var.github_repository}/.github/workflows/terraform.yml@refs/heads/main' &&
+    assertion.event_name == 'push' &&
+    assertion.ref == 'refs/heads/main' &&
+    assertion.environment == 'production'
+  EOT
 }
 
 locals {
@@ -63,20 +100,18 @@ resource "google_service_account" "apply" {
   display_name = "Terraform apply (CI)"
 }
 
-# Any workflow in the repository may act as the plan identity...
+# Tokens accepted by the narrowly scoped plan provider may use the plan SA.
 resource "google_service_account_iam_member" "plan_wif" {
   service_account_id = google_service_account.plan.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${local.pool_path}/attribute.repository/${var.github_repository}"
+  member             = "principalSet://iam.googleapis.com/${local.pool_path}/attribute.access/plan"
 }
 
-# ...but only jobs running in the "production" GitHub environment, which
-# requires a reviewer's approval, may act as the apply identity. GitHub sets
-# the token's subject to repo:OWNER/REPO:environment:NAME for such jobs.
+# Only tokens accepted by the main + production apply provider may use apply.
 resource "google_service_account_iam_member" "apply_wif" {
   service_account_id = google_service_account.apply.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principal://iam.googleapis.com/${local.pool_path}/subject/repo:${var.github_repository}:environment:production"
+  member             = "principalSet://iam.googleapis.com/${local.pool_path}/attribute.access/apply"
 }
 
 # Plan reads everything; it never changes anything in the project.
@@ -99,14 +134,24 @@ resource "google_project_iam_member" "apply_editor" {
   member  = google_service_account.apply.member
 }
 
-# Both read and lock state; only on the state bucket.
-resource "google_storage_bucket_iam_member" "state" {
-  for_each = {
-    plan  = google_service_account.plan.member
-    apply = google_service_account.apply.member
-  }
+# Plans run with -lock=false, so they only need to read the state object.
+resource "google_storage_bucket_iam_member" "plan_state" {
+  bucket = var.state_bucket
+  role   = "roles/storage.objectViewer"
+  member = google_service_account.plan.member
+}
 
+# Apply needs to create the lock and update state.
+resource "google_storage_bucket_iam_member" "apply_state" {
   bucket = var.state_bucket
   role   = "roles/storage.objectUser"
-  member = each.value
+  member = google_service_account.apply.member
+}
+
+# Earlier versions of this example granted both identities through one
+# for_each resource. Moving the apply grant keeps an existing binding in place;
+# a delete-and-create of the same member could otherwise remove it.
+moved {
+  from = google_storage_bucket_iam_member.state["apply"]
+  to   = google_storage_bucket_iam_member.apply_state
 }

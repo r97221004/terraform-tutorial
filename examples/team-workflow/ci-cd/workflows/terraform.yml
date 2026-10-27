@@ -1,6 +1,7 @@
 # Copy to .github/workflows/terraform.yml in the repository that holds your
 # Terraform code. Set these repository variables (Settings → Variables):
-#   GCP_PROJECT_ID, WIF_PROVIDER, PLAN_SA, APPLY_SA, TF_STATE_BUCKET
+#   GCP_PROJECT_ID, PLAN_WIF_PROVIDER, APPLY_WIF_PROVIDER,
+#   PLAN_SA, APPLY_SA, TF_STATE_BUCKET
 # and create a "production" environment with required reviewers.
 name: terraform
 
@@ -60,7 +61,7 @@ jobs:
       # Exchange GitHub's OIDC token for short-lived Google credentials. No keys.
       - uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          workload_identity_provider: ${{ vars.PLAN_WIF_PROVIDER }}
           service_account: ${{ vars.PLAN_SA }}
 
       - uses: hashicorp/setup-terraform@v4
@@ -73,7 +74,9 @@ jobs:
           -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
           -backend-config="prefix=${{ env.TF_DIR }}"
 
-      - run: terraform plan -lock-timeout=5m -out=tfplan
+      # The plan identity can only read state. Disabling the lock means it does
+      # not need permission to create or delete lock objects in the bucket.
+      - run: terraform plan -lock=false -out=tfplan
       - run: terraform show -no-color tfplan > plan.txt
 
       # A PR plan is a preview only. Save the binary plan only on main, where
@@ -137,7 +140,7 @@ jobs:
 
       - uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          workload_identity_provider: ${{ vars.APPLY_WIF_PROVIDER }}
           service_account: ${{ vars.APPLY_SA }}
 
       - uses: hashicorp/setup-terraform@v4

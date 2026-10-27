@@ -39,3 +39,4 @@ backend.hcl
 *.json.key
 *-key.json
 credentials.json
+gha-creds-*.json

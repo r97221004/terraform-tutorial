@@ -13,6 +13,16 @@ variable "github_repository" {
   }
 }
 
+variable "github_repository_id" {
+  description = "Immutable numeric ID of the GitHub repository. Get it with: gh api repos/OWNER/REPO --jq .id"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[0-9]+$", var.github_repository_id))
+    error_message = "github_repository_id must be the repository's numeric GitHub ID."
+  }
+}
+
 variable "state_bucket" {
   description = "The Terraform state bucket from the Remote Backend chapter."
   type        = string
