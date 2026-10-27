@@ -1,10 +1,11 @@
-variable "project_id" {
-  description = "The GCP project to create resources in. Set via TF_VAR_project_id."
+variable "team" {
+  description = "Team that owns the server."
   type        = string
+  default     = "ml-platform"
 }
 
-variable "region" {
-  description = "Default region. Set via TF_VAR_region."
+variable "environment" {
+  description = "Deployment environment, such as dev or prod."
   type        = string
-  default     = "us-central1"
+  default     = "dev"
 }

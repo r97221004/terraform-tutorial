@@ -393,7 +393,7 @@ $ terraform output -json labels
 {"cost-center":"research","environment":"dev","managed-by":"terraform","team":"ml-platform"}
 ```
 
-Use `-raw` for single strings in shell commands, as you did with `gcloud storage cat "$(terraform output -raw readme_uri)"` in [Anatomy of HCL](../getting-started/hcl-anatomy.md). Use `-json` for anything structured. Outputs are read from **state**, so they only exist after an `apply`, and they don't call GCP.
+Use `-raw` for single strings in shell commands, as you did with `cat "$(terraform output -raw readme_path)"` in [Anatomy of HCL](../getting-started/hcl-anatomy.md). Use `-json` for anything structured. Outputs are read from **state**, so they only exist after an `apply`, and they don't call GCP.
 
 **What makes a good output:** values someone downstream needs (names, URLs, IDs, service account emails), each with a `description`. Don't output whole resources "just in case". Every output is a promise to its readers, and removing one later can break them.
 
@@ -403,7 +403,7 @@ Some values shouldn't appear on screen or in CI logs: API tokens, passwords, pri
 
 Values become sensitive in two ways:
 
-- **The provider marks an attribute sensitive.** That's why `google_storage_bucket_object`'s `content` showed as `(sensitive value)` in [Anatomy of HCL](../getting-started/hcl-anatomy.md): the provider can't know whether a file's contents are secret, so it assumes they might be.
+- **The provider marks an attribute sensitive.** That's why `google_storage_bucket_object`'s `content` shows as `(sensitive value)` in a plan: the provider can't know whether a file's contents are secret, so it assumes they might be.
 - **You mark a variable or output** with `sensitive = true`.
 
 Sensitivity **follows the value**. Anything computed from a sensitive value is sensitive too, and Terraform won't let it leak out through an unmarked output:

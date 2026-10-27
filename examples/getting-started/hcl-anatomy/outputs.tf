@@ -1,9 +1,9 @@
-output "bucket_name" {
-  description = "Name of the notes bucket."
-  value       = google_storage_bucket.notes.name
+output "server_name" {
+  description = "The generated server name."
+  value       = random_pet.server.id
 }
 
-output "readme_uri" {
-  description = "gs:// URI of the uploaded README object."
-  value       = "gs://${google_storage_bucket.notes.name}/${google_storage_bucket_object.readme.name}"
+output "readme_path" {
+  description = "Path of the generated README file."
+  value       = local_file.readme.filename
 }

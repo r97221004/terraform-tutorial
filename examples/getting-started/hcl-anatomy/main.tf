@@ -1,38 +1,35 @@
 locals {
-  bucket_name = "${var.project_id}-hcl-anatomy"
+  name_prefix = "${var.team}-${var.environment}"
 
-  common_labels = {
-    managed-by = "terraform"
-    tutorial   = "hcl-anatomy"
+  labels = {
+    team        = var.team
+    environment = var.environment
   }
 }
 
-resource "google_storage_bucket" "notes" {
-  name     = local.bucket_name
-  location = var.region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
+resource "random_pet" "server" {
+  length = 2
 
   # An ARGUMENT whose value is a map: note the `=`.
-  labels = local.common_labels
+  # A different team or environment gets a new name.
+  keepers = local.labels
 
-  # A nested BLOCK: no `=`.
-  versioning {
-    enabled = true
+  # A nested BLOCK: no `=`. (lifecycle is covered in Meta-Arguments.)
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-resource "google_storage_bucket_object" "readme" {
-  # Referencing another resource's attribute creates an implicit dependency:
-  # Terraform creates the bucket first, and destroys this object first.
-  bucket = google_storage_bucket.notes.name
-  name   = "README.txt"
+resource "local_file" "readme" {
+  filename             = "${path.module}/out/${local.name_prefix}.txt"
+  file_permission      = "0644"
+  directory_permission = "0755"
 
+  # Referencing another resource's attribute creates an implicit dependency:
+  # Terraform creates the name first, and destroys this file first.
   content = <<-EOT
-    This bucket is managed by Terraform.
-    Project: ${var.project_id}
-    Region:  ${upper(var.region)}
+    This file is managed by Terraform.
+    Server:      ${random_pet.server.id}
+    Environment: ${upper(var.environment)}
   EOT
 }
