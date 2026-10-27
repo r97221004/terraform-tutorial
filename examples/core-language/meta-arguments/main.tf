@@ -8,34 +8,20 @@ locals {
   }
 }
 
-# for_each over a map: one bucket per entry, addressed by key,
-# e.g. google_storage_bucket.dataset["raw"].
-resource "google_storage_bucket" "dataset" {
+# for_each over a map: one manifest per entry, addressed by key,
+# e.g. local_file.dataset["raw"]. A storage job reads these to set up buckets.
+resource "local_file" "dataset" {
   for_each = var.datasets
 
-  name          = "${var.project_id}-ma-${each.key}"
-  location      = var.region
-  storage_class = each.value.storage_class
+  filename             = "${path.module}/out/datasets/${each.key}.json"
+  file_permission      = "0644"
+  directory_permission = "0755"
 
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
-
-  labels = {
-    stage = each.key
-  }
-
-  dynamic "lifecycle_rule" {
-    for_each = each.value.retention_days == null ? [] : [each.value.retention_days]
-    content {
-      condition {
-        age = lifecycle_rule.value
-      }
-      action {
-        type = "Delete"
-      }
-    }
-  }
+  content = jsonencode({
+    stage          = each.key
+    storage_class  = each.value.storage_class
+    retention_days = each.value.retention_days
+  })
 
   lifecycle {
     # Checked during plan, before anything is created or changed.
@@ -46,42 +32,33 @@ resource "google_storage_bucket" "dataset" {
   }
 }
 
-# count as an on/off switch: zero or one bucket.
-resource "google_storage_bucket" "scratch" {
+# count as an on/off switch: zero or one file.
+resource "local_file" "scratch" {
   count = var.enable_scratch ? 1 : 0
 
-  name     = "${var.project_id}-ma-scratch"
-  location = var.region
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
-
-  lifecycle_rule {
-    condition {
-      age = 7
-    }
-    action {
-      type = "Delete"
-    }
-  }
+  filename             = "${path.module}/out/scratch/README.txt"
+  content              = "Scratch space. Anything here may be deleted.\n"
+  file_permission      = "0644"
+  directory_permission = "0755"
 }
 
 # for_each over a set of strings: each.key and each.value are the same string.
-resource "google_storage_bucket_object" "model_card" {
+resource "local_file" "model_card" {
   for_each = var.models
 
-  bucket  = google_storage_bucket.dataset["curated"].name
-  name    = "model-cards/${each.key}.md"
-  content = "# ${each.key}\n\nEvaluation results go here.\n"
+  filename             = "${path.module}/out/model-cards/${each.key}.md"
+  content              = "# ${each.key}\n\nEvaluation results go here.\n"
+  file_permission      = "0644"
+  directory_permission = "0755"
 }
 
 # A marker that downstream jobs wait for. Nothing in it refers to the model
 # cards, so depends_on is the only way to say "write this one last".
-resource "google_storage_bucket_object" "ready" {
-  bucket  = google_storage_bucket.dataset["curated"].name
-  name    = "model-cards/_READY"
-  content = "ok"
+resource "local_file" "ready" {
+  filename             = "${path.module}/out/model-cards/_READY"
+  content              = "ok\n"
+  file_permission      = "0644"
+  directory_permission = "0755"
 
-  depends_on = [google_storage_bucket_object.model_card]
+  depends_on = [local_file.model_card]
 }

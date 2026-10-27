@@ -1,14 +1,14 @@
-output "dataset_buckets" {
-  description = "Dataset stage => bucket name."
-  value       = { for stage, b in google_storage_bucket.dataset : stage => b.name }
+output "dataset_manifests" {
+  description = "Dataset stage => manifest path."
+  value       = { for stage, f in local_file.dataset : stage => f.filename }
 }
 
-output "scratch_bucket" {
-  description = "The scratch bucket's name, or null when enable_scratch is false."
-  value       = one(google_storage_bucket.scratch[*].name)
+output "scratch_readme" {
+  description = "The scratch README's path, or null when enable_scratch is false."
+  value       = one(local_file.scratch[*].filename)
 }
 
 output "model_cards" {
-  description = "gs:// paths of the model cards."
-  value       = [for o in google_storage_bucket_object.model_card : "gs://${o.bucket}/${o.name}"]
+  description = "Paths of the model cards."
+  value       = [for f in local_file.model_card : f.filename]
 }

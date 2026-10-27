@@ -4,7 +4,7 @@
 
 ---
 
-Arguments like `name` and `location` are defined by the provider and passed to GCP. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. A fifth, `provider`, picks which provider configuration a resource uses; you'll meet it in [Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias). This chapter covers the other four.
+Arguments like `filename` and `content` are defined by the provider and passed to whatever it manages. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. A fifth, `provider`, picks which provider configuration a resource uses; you'll meet it in [Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias). This chapter covers the other four.
 
 | Meta-argument | What it controls |
 |---|---|
@@ -21,55 +21,55 @@ cd examples/core-language/meta-arguments
 terraform init
 ```
 
-The example creates the storage layout for an ML team: one bucket per dataset stage (`raw`, `curated`, `eval`), an optional scratch bucket, a model card per model, and a `_READY` marker that's written last.
+The example writes the file layout for an ML team: one manifest per dataset stage (`raw`, `curated`, `eval`) that a storage job will turn into buckets, an optional scratch area, a model card per model, and a `_READY` marker that's written last.
 
 ```bash
 terraform plan
 ```
 
 ```
-  # google_storage_bucket.dataset["curated"] will be created
-  # google_storage_bucket.dataset["eval"] will be created
-  # google_storage_bucket.dataset["raw"] will be created
-  # google_storage_bucket.scratch[0] will be created
-  # google_storage_bucket_object.model_card["llama-3-1-8b"] will be created
-  # google_storage_bucket_object.model_card["qwen2-5-7b"] will be created
-  # google_storage_bucket_object.ready will be created
+  # local_file.dataset["curated"] will be created
+  # local_file.dataset["eval"] will be created
+  # local_file.dataset["raw"] will be created
+  # local_file.model_card["llama-3-1-8b"] will be created
+  # local_file.model_card["qwen2-5-7b"] will be created
+  # local_file.ready will be created
+  # local_file.scratch[0] will be created
 
 Plan: 7 to add, 0 to change, 0 to destroy.
 ```
 
-Seven resources from five blocks. The `[...]` after an address is the **instance key**: which copy of a multi-instance resource this is.
+Seven resources from four blocks. The `[...]` after an address is the **instance key**: which copy of a multi-instance resource this is.
 
 ## `count`
 
 `count` makes a whole number of copies. Inside the block, `count.index` is the copy's number, starting at 0. Its most common use by far is as an **on/off switch**:
 
 ```hcl
-# count as an on/off switch: zero or one bucket.
-resource "google_storage_bucket" "scratch" {
+# count as an on/off switch: zero or one file.
+resource "local_file" "scratch" {
   count = var.enable_scratch ? 1 : 0
 
-  name     = "${var.project_id}-ma-scratch"
-  location = var.region
+  filename = "${path.module}/out/scratch/README.txt"
+  content  = "Scratch space. Anything here may be deleted.\n"
   ...
 }
 ```
 
-With `count`, the resource becomes a **list** of instances, and its address gets an index: `google_storage_bucket.scratch[0]`. That changes how you refer to it:
+With `count`, the resource becomes a **list** of instances, and its address gets an index: `local_file.scratch[0]`. That changes how you refer to it:
 
 | You want | Write |
 |---|---|
-| The one instance, when you know it exists | `google_storage_bucket.scratch[0].name` |
-| A list of every instance's attribute | `google_storage_bucket.scratch[*].name` |
-| The instance's attribute, or `null` if `count` is 0 | `one(google_storage_bucket.scratch[*].name)` |
+| The one instance, when you know it exists | `local_file.scratch[0].filename` |
+| A list of every instance's attribute | `local_file.scratch[*].filename` |
+| The instance's attribute, or `null` if `count` is 0 | `one(local_file.scratch[*].filename)` |
 
 `[0]` fails when `count` is 0. `one()` takes a list of zero or one element and returns the element or `null`, which is exactly what an output for an optional resource needs:
 
 ```hcl
-output "scratch_bucket" {
-  description = "The scratch bucket's name, or null when enable_scratch is false."
-  value       = one(google_storage_bucket.scratch[*].name)
+output "scratch_readme" {
+  description = "The scratch README's path, or null when enable_scratch is false."
+  value       = one(local_file.scratch[*].filename)
 }
 ```
 
@@ -87,10 +87,10 @@ variable "teams" {
   default = ["nlp", "vision", "speech"]
 }
 
-resource "google_storage_bucket" "by_count" {
+resource "local_file" "by_count" {
   count    = length(var.teams)
-  name     = "${var.project_id}-${var.teams[count.index]}"
-  location = "us-central1"
+  filename = "${path.module}/out/count/${var.teams[count.index]}.txt"
+  content  = "${var.teams[count.index]}\n"
 }
 ```
 
@@ -139,21 +139,21 @@ flowchart LR
 Removing `"vision"` from the list gives this plan:
 
 ```
-  # google_storage_bucket.by_count[1] must be replaced
--/+ resource "google_storage_bucket" "by_count" {
-      ~ name                        = "tf-tutorial-3fa9c1-vision" -> "tf-tutorial-3fa9c1-speech" # forces replacement
+  # local_file.by_count[1] must be replaced
+-/+ resource "local_file" "by_count" {
+      ~ filename             = "./out/count/vision.txt" -> "./out/count/speech.txt" # forces replacement
       ...
-  # google_storage_bucket.by_count[2] will be destroyed
+  # local_file.by_count[2] will be destroyed
   # (because index [2] is out of range for count)
-  - resource "google_storage_bucket" "by_count" {
+  - resource "local_file" "by_count" {
 ```
 
-You asked to delete one bucket. Terraform deletes **two**, including the `speech` bucket and everything in it, then recreates `speech` empty at index 1. The same change with `for_each` touches only `vision`:
+You asked to delete one file. Terraform deletes **two**, including `speech.txt`, then recreates `speech.txt` at index 1. With files that's harmless; with buckets, it means deleting the `speech` bucket and everything in it, then recreating it empty. The same change with `for_each` touches only `vision`:
 
 ```
-  # google_storage_bucket.by_for_each["vision"] will be destroyed
+  # local_file.by_for_each["vision"] will be destroyed
   # (because key ["vision"] is not in for_each map)
-  - resource "google_storage_bucket" "by_for_each" {
+  - resource "local_file" "by_for_each" {
 ```
 
 **Rule: use `count` only for "zero or one", or for truly identical copies** where position doesn't matter. For one-per-thing, use `for_each`.
@@ -171,7 +171,7 @@ The usual form: a map whose keys name the instances and whose values hold each o
 
 ```hcl
 variable "datasets" {
-  description = "One bucket per dataset stage. The map key becomes part of the bucket name."
+  description = "One manifest per dataset stage. The map key becomes part of the file name."
   type = map(object({
     storage_class  = optional(string, "STANDARD")
     retention_days = optional(number)
@@ -185,21 +185,21 @@ variable "datasets" {
 ```
 
 ```hcl
-# for_each over a map: one bucket per entry, addressed by key,
-# e.g. google_storage_bucket.dataset["raw"].
-resource "google_storage_bucket" "dataset" {
+# for_each over a map: one manifest per entry, addressed by key,
+# e.g. local_file.dataset["raw"]. A storage job reads these to set up buckets.
+resource "local_file" "dataset" {
   for_each = var.datasets
 
-  name          = "${var.project_id}-ma-${each.key}"
-  location      = var.region
-  storage_class = each.value.storage_class
+  filename = "${path.module}/out/datasets/${each.key}.json"
   ...
-  labels = {
-    stage = each.key
-  }
+  content = jsonencode({
+    stage          = each.key
+    storage_class  = each.value.storage_class
+    retention_days = each.value.retention_days
+  })
 ```
 
-Adding a stage is one line in the map. Removing one destroys only that bucket.
+Adding a stage is one line in the map. Removing one destroys only that manifest. On GCP, the same `for_each` would create the buckets themselves, one per stage.
 
 ### Over a set
 
@@ -213,12 +213,12 @@ variable "models" {
 }
 
 # for_each over a set of strings: each.key and each.value are the same string.
-resource "google_storage_bucket_object" "model_card" {
+resource "local_file" "model_card" {
   for_each = var.models
 
-  bucket  = google_storage_bucket.dataset["curated"].name
-  name    = "model-cards/${each.key}.md"
-  content = "# ${each.key}\n\nEvaluation results go here.\n"
+  filename = "${path.module}/out/model-cards/${each.key}.md"
+  content  = "# ${each.key}\n\nEvaluation results go here.\n"
+  ...
 }
 ```
 
@@ -226,30 +226,32 @@ If the input is a list, write `for_each = toset(var.models)`.
 
 ### Referring to `for_each` instances
 
-A `for_each` resource is a **map** of instances. Pick one by key, as `bucket = google_storage_bucket.dataset["curated"].name` does above, or turn the whole map into something useful with a `for` expression:
+A `for_each` resource is a **map** of instances. Pick one by key, as in `local_file.dataset["curated"].filename`, or turn the whole map into something useful with a `for` expression:
 
 ```hcl
-output "dataset_buckets" {
-  description = "Dataset stage => bucket name."
-  value       = { for stage, b in google_storage_bucket.dataset : stage => b.name }
+output "dataset_manifests" {
+  description = "Dataset stage => manifest path."
+  value       = { for stage, f in local_file.dataset : stage => f.filename }
 }
 ```
 
 ```
-  + dataset_buckets = {
-      + curated = "tf-tutorial-3fa9c1-ma-curated"
-      + eval    = "tf-tutorial-3fa9c1-ma-eval"
-      + raw     = "tf-tutorial-3fa9c1-ma-raw"
+  + dataset_manifests = {
+      + curated = "./out/datasets/curated.json"
+      + eval    = "./out/datasets/eval.json"
+      + raw     = "./out/datasets/raw.json"
     }
 ```
 
 ### Keys must be known at plan time
 
-Terraform has to know every key during `plan`, so it can show you the full list of instances. Keys built from values GCP decides fail:
+Terraform has to know every key during `plan`, so it can show you the full list of instances. Keys built from values decided at apply time fail, such as a random name:
 
 ```hcl
-resource "google_storage_bucket_object" "readme" {
-  for_each = toset([google_storage_bucket.logs.self_link])   # ⚠️ known only after apply
+resource "random_pet" "logs" {}
+
+resource "local_file" "readme" {
+  for_each = toset([random_pet.logs.id]) # ⚠️ known only after apply
   ...
 }
 ```
@@ -257,10 +259,10 @@ resource "google_storage_bucket_object" "readme" {
 ```
 Error: Invalid for_each argument
 
-  on extra.tf line 6, in resource "google_storage_bucket_object" "readme":
-   6:   for_each = toset([google_storage_bucket.logs.self_link])
+  on main.tf line 4, in resource "local_file" "readme":
+   4:   for_each = toset([random_pet.logs.id]) # ⚠️ known only after apply
     ├────────────────
-    │ google_storage_bucket.logs.self_link is a string, known only after apply
+    │ random_pet.logs.id is a string, known only after apply
 
 The "for_each" set includes values derived from resource attributes that
 cannot be determined until apply, and so Terraform cannot determine the full
@@ -271,7 +273,7 @@ where the keys are defined statically in your configuration and where only
 the values contain apply-time results.
 ```
 
-The fix is what the message says: build keys from your **input** (variable names, fixed strings), and put apply-time values only in the map's **values**. `{ logs = google_storage_bucket.logs.self_link }` works; the key `logs` is known.
+The fix is what the message says: build keys from your **input** (variable names, fixed strings), and put apply-time values only in the map's **values**. `{ logs = random_pet.logs.id }` works; the key `logs` is known. On GCP, the usual offenders are IDs and self-links of resources created in the same run.
 
 ### `count` or `for_each`?
 
@@ -293,19 +295,19 @@ The example writes a `_READY` marker that downstream jobs wait for. It must be w
 ```hcl
 # A marker that downstream jobs wait for. Nothing in it refers to the model
 # cards, so depends_on is the only way to say "write this one last".
-resource "google_storage_bucket_object" "ready" {
-  bucket  = google_storage_bucket.dataset["curated"].name
-  name    = "model-cards/_READY"
-  content = "ok"
+resource "local_file" "ready" {
+  filename = "${path.module}/out/model-cards/_READY"
+  content  = "ok\n"
+  ...
 
-  depends_on = [google_storage_bucket_object.model_card]
+  depends_on = [local_file.model_card]
 }
 ```
 
 `depends_on` takes a list of whole resources (or modules), not attributes. Pointing it at a `for_each` resource means "all of its instances". You can see the edge it adds with `terraform graph`:
 
 ```
-  "google_storage_bucket_object.ready" -> "google_storage_bucket_object.model_card";
+  "local_file.ready" -> "local_file.model_card";
 ```
 
 On GCP you'll mostly need `depends_on` for **side effects that happen inside GCP**:
@@ -322,7 +324,7 @@ The `lifecycle` block changes how Terraform applies changes to a resource. It ha
 ### `prevent_destroy`: a guard against deletion
 
 ```hcl
-resource "google_storage_bucket" "model_weights" {
+resource "local_file" "by_for_each" {
   ...
   lifecycle {
     prevent_destroy = true
@@ -330,26 +332,25 @@ resource "google_storage_bucket" "model_weights" {
 }
 ```
 
-Any plan that would destroy the resource, including a replacement, fails:
+Any plan that would destroy the resource, including a replacement, fails. Removing `"vision"` from the teams list above now stops the plan:
 
 ```
 Error: Instance cannot be destroyed
 
-  on main.tf line 15:
-  15: resource "google_storage_bucket" "by_for_each" {
+  on main.tf line 12:
+  12: resource "local_file" "by_for_each" {
 
-Resource google_storage_bucket.by_for_each["vision"] has
-lifecycle.prevent_destroy set, but the plan calls for this resource to be
-destroyed. To avoid this error and continue with the plan, either disable
-lifecycle.prevent_destroy or reduce the scope of the plan using the -target
-option.
+Resource local_file.by_for_each["vision"] has lifecycle.prevent_destroy set,
+but the plan calls for this resource to be destroyed. To avoid this error and
+continue with the plan, either disable lifecycle.prevent_destroy or reduce
+the scope of the plan using the -target option.
 ```
 
 Use it on things that hold data or are painful to recreate: the state bucket, model-weight buckets, databases. Two limits: it must be a literal `true` or `false` (no variables), and it doesn't help if someone deletes the whole `resource` block, since the setting goes with it. For buckets, also leave `force_destroy` off, so GCS refuses to delete a non-empty bucket either way.
 
 ### `ignore_changes`: let something else own an attribute
 
-Sometimes another system legitimately changes an attribute after creation. Without `ignore_changes`, every plan would try to change it back:
+Sometimes another system legitimately changes an attribute after creation. Without `ignore_changes`, every plan would try to change it back. The classic case is on GCP, where the cluster autoscaler resizes a GKE node pool:
 
 ```hcl
 resource "google_container_node_pool" "gpu" {
@@ -397,7 +398,7 @@ Forces a replacement when a referenced resource or attribute changes, even thoug
 
 ### `precondition` and `postcondition`: assumptions, checked
 
-A **precondition** is a check that runs during `plan`, before the resource is created or changed. Unlike [variable validation](variables-and-outputs.md#validation-rules), it can look at several values together, including locals and other resources. The example uses one to catch a costly mistake: GCS charges an early-deletion fee if objects are deleted before a storage class's minimum duration (30 days for Nearline, 90 for Coldline, 365 for Archive):
+A **precondition** is a check that runs during `plan`, before the resource is created or changed. Unlike [variable validation](variables-and-outputs.md#validation-rules), it can look at several values together, including locals and other resources. The example uses one to stop a manifest that would cost money once the storage job turns it into a bucket: GCS charges an early-deletion fee if objects are deleted before a storage class's minimum duration (30 days for Nearline, 90 for Coldline, 365 for Archive):
 
 ```hcl
   lifecycle {
@@ -416,8 +417,8 @@ terraform plan -var 'datasets={raw={storage_class="NEARLINE",retention_days=7},c
 ```
 Error: Resource precondition failed
 
-  on main.tf line 43, in resource "google_storage_bucket" "dataset":
-  43:       condition     = coalesce(each.value.retention_days, 36500) >= local.min_days[each.value.storage_class]
+  on main.tf line 29, in resource "local_file" "dataset":
+  29:       condition     = coalesce(each.value.retention_days, 36500) >= local.min_days[each.value.storage_class]
     ├────────────────
     │ each.value.retention_days is 7
     │ each.value.storage_class is "NEARLINE"
@@ -427,7 +428,7 @@ Dataset "raw": retention_days is shorter than the minimum storage duration of
 NEARLINE, so every deletion would pay an early-deletion fee.
 ```
 
-A **postcondition** runs after the resource is created or read, and can check `self`, the resource's own attributes. Use it to assert something about what GCP actually returned, for example that a data source found an image of the expected architecture.
+A **postcondition** runs after the resource is created or read, and can check `self`, the resource's own attributes. Use it to assert something about what was actually created or read, for example that a data source found an image of the expected architecture on GCP.
 
 ## Apply it
 
@@ -438,16 +439,26 @@ terraform state list
 ```
 
 ```
-google_storage_bucket.dataset["curated"]
-google_storage_bucket.dataset["eval"]
-google_storage_bucket.dataset["raw"]
-google_storage_bucket.scratch[0]
-google_storage_bucket_object.model_card["llama-3-1-8b"]
-google_storage_bucket_object.model_card["qwen2-5-7b"]
-google_storage_bucket_object.ready
+local_file.dataset["curated"]
+local_file.dataset["eval"]
+local_file.dataset["raw"]
+local_file.model_card["llama-3-1-8b"]
+local_file.model_card["qwen2-5-7b"]
+local_file.ready
+local_file.scratch[0]
 ```
 
-Watch the apply output: the two model cards are written in parallel, and `_READY` only after both finish. Then try the changes from this chapter against real resources:
+Watch the apply output: the two model cards are written in parallel, and `_READY` only after both finish:
+
+```
+local_file.model_card["qwen2-5-7b"]: Creating...
+local_file.model_card["llama-3-1-8b"]: Creating...
+local_file.model_card["qwen2-5-7b"]: Creation complete after 0s [id=28bc0d275fa6a939c7e66268e82b406fa6f9fd3e]
+local_file.model_card["llama-3-1-8b"]: Creation complete after 0s [id=83b0cf4b20b354162c6f8812f7dec930b75f628c]
+local_file.ready: Creating...
+```
+
+Then try the changes from this chapter against the real files:
 
 ```bash
 terraform plan -var enable_scratch=false                         # scratch[0] will be destroyed
@@ -487,7 +498,7 @@ terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # on
 terraform destroy
 ```
 
-That's the end of Part 1. You can now read and write any Terraform configuration. Part 2 is about the file that makes it all work: [State & Drift](../state/state-basics.md).
+That's the end of Part 1. You can now read and write any Terraform configuration, and everything so far ran on your own disk. Part 2 connects Terraform to GCP, starting with [Connecting to GCP](../state/google-provider.md), and then turns to the file that makes it all work: state.
 
 ---
 
