@@ -315,6 +315,39 @@ locals {
 - Locals can refer to variables, resources, data sources, and other locals, in any order. Terraform works out the dependencies.
 - **Callers can't set a local.** That's the difference from a variable: a variable is part of your interface, a local is an implementation detail.
 
+### Why not just use a variable?
+
+Try making `name_prefix` a variable with a computed default:
+
+```hcl
+variable "name_prefix" {
+  default = "${var.team}-${var.environment}"
+}
+```
+
+Terraform rejects it:
+
+```text
+Error: Variables not allowed
+
+  on main.tf line 10, in variable "name_prefix":
+  10:   default = "${var.team}-${var.environment}"
+
+Variables may not be used here.
+```
+
+A variable's `default` must be a fixed value. It can't refer to other variables, resources, or data sources. Anything you build from other values has to be a local.
+
+Even for a fixed value, a variable opens a door you may want closed. If `name_prefix` were a variable, anyone could pass `-var name_prefix=whatever` and break the naming convention. The same goes for `labels`: it sits in a local so `extra_labels` can add keys but never replace `environment` or `team`.
+
+| The value is... | Use |
+|---|---|
+| Different per environment or per user (project ID, region, environment name) | variable |
+| Built from other values (name prefix, shared labels) | local |
+| Fixed, but repeated in many places | local |
+
+Think of a variable as a function's parameter and a local as a variable inside the function.
+
 `local.config_name` names the file, and `local.labels` goes into its content:
 
 ```hcl
