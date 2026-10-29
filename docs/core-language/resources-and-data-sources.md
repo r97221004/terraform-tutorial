@@ -302,6 +302,16 @@ Terraform will perform the following actions:
 
 Everything computed from it is now `(known after apply)` too, so the plan tells you less. Worse, this keeps happening on every plan where the resource has a pending change. **Never use a data source to read something the same configuration manages.** Refer to the resource directly: `local_file.manifest.content` already has everything the data source would return.
 
+The same deferral happens with **`depends_on`**, a setting that tells Terraform "wait for these resources first" even when nothing refers to them. Give `data.local_file.team` a `depends_on` pointing at any resource with a pending change, and its read moves to apply too:
+
+```
+  # data.local_file.team will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "local_file" "team" {
+```
+
+Now even `owner`, which was known at plan time before, shows `(known after apply)`. So avoid `depends_on` on data sources unless the read really must wait. [Meta-Arguments](meta-arguments.md#depends_on) covers `depends_on` in full.
+
 ### When the thing isn't there
 
 If the object doesn't exist, **the plan fails**. A data source never creates what it can't find. Misspell the file name as `input/teams.json`:
