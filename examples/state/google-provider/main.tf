@@ -1,8 +1,12 @@
-resource "google_storage_bucket" "example" {
-  name     = "${var.project_id}-gp-example"
+provider "google" {
+  project = var.project_id
+  region  = var.region
+}
+
+resource "google_storage_bucket" "first" {
+  name     = "${var.project_id}-first-bucket"
   location = var.region
 
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-  force_destroy               = true
+  # Let `terraform destroy` delete the bucket even if it still holds objects.
+  force_destroy = true
 }

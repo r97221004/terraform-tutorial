@@ -4,7 +4,7 @@
 
 ---
 
-The first half of this guide runs entirely on your own machine: [Getting Started](core-workflow.md) and [Part 1](../core-language/providers.md) manage local files and generated values, so you need no cloud account yet. You'll set up GCP, with a sandbox project, a budget alert, and credentials, at the start of Part 2 in [Set up GCP](../state/gcp-setup.md).
+The first half of this guide runs entirely on your own machine: [Getting Started](core-workflow.md) and [Part 1](../core-language/providers.md) manage local files and generated values, so you need no cloud account yet. You'll set up GCP, with a sandbox project, a budget alert, and credentials, at the start of Part 2 in [Connecting to GCP](../state/google-provider.md).
 
 Commands assume Ubuntu, Debian, or WSL2. On macOS, follow the linked official instructions; everything after installation is the same.
 

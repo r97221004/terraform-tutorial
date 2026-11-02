@@ -100,7 +100,7 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 
 - A Linux, macOS, or WSL2 shell with basic command-line familiarity.
 - Terraform **1.11+**. [Setup](docs/getting-started/setup.md) installs it. That's all Getting Started and Part 1 need: they run on your own machine.
-- From Part 2 on, a **Google Cloud account with billing enabled** and the **gcloud CLI**. Free trial credit covers Parts 2–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Set up GCP](docs/state/gcp-setup.md) walks you through all of it.
+- From Part 2 on, a **Google Cloud account with billing enabled** and the **gcloud CLI**. Free trial credit covers Parts 2–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Connecting to GCP](docs/state/google-provider.md) walks you through all of it.
 
 > 💸 **About cost.** Getting Started and Part 1 cost nothing: they only create local files. Parts 2–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Part 2 starts by having you create a **budget alert** before any cloud resource, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
 
@@ -112,7 +112,7 @@ Before starting, check that Terraform works:
 terraform version                          # Terraform v1.11 or newer
 ```
 
-If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP checks come later, in [Set up GCP](docs/state/gcp-setup.md#verify).
+If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup comes later, in [Connecting to GCP](docs/state/google-provider.md).
 
 ## Table of Contents
 
@@ -133,8 +133,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP checks com
 
 **Part 2 — GCP & State**
 
-- [**Set up GCP**](docs/state/gcp-setup.md): gcloud, ADC, a sandbox project, and a budget alert.
-- [**Connecting to GCP**](docs/state/google-provider.md): the google provider, default labels, and your first bucket.
+- [**Connecting to GCP**](docs/state/google-provider.md): credentials, roles, a sandbox project with a budget alert, and your first bucket.
 - [**State & Drift**](docs/state/state-basics.md): what state is and how to inspect it.
 - [**Remote Backend on GCS**](docs/state/remote-backend.md): shared state with locking.
 - [**Refactoring: moved, import, removed**](docs/state/refactoring.md): change addresses without destroying anything.

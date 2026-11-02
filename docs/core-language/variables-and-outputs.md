@@ -386,7 +386,7 @@ Every value here is known before anything is created, so the plan shows the whol
       + filename             = "./out/ml-platform-dev-serving.json"
 ```
 
-On GCP you'd pass `local.labels` to the provider's `default_labels` instead, and every resource would get it ([Connecting to GCP](../state/google-provider.md#configuring-the-google-provider)).
+On GCP you'd pass `local.labels` to the provider's `default_labels` instead, and every resource would get it ([Projects & APIs](../gcp-foundations/projects-and-apis.md#labeling-everything)).
 
 **When to use a local:**
 

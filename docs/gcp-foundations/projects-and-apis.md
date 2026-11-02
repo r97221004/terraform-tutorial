@@ -88,11 +88,21 @@ resource "google_project" "ml_dev" {
 
 Note **`deletion_policy = "PREVENT"`**: the google provider protects projects from `terraform destroy` by default, because deleting a project deletes everything in it. Setting it to `"DELETE"` is a deliberate decision.
 
-This guide doesn't do this. Creating projects needs permissions on an organization or folder (`roles/resourcemanager.projectCreator`) and on a billing account, which personal accounts often don't have. You created your sandbox project by hand in [Set up GCP](../state/gcp-setup.md#3-create-a-sandbox-project), and every example uses it through `var.project_id`. Real projects are often split the same way: a platform team owns the project factory, and application teams' Terraform runs **inside** the projects it creates.
+This guide doesn't do this. Creating projects needs permissions on an organization or folder (`roles/resourcemanager.projectCreator`) and on a billing account, which personal accounts often don't have. You created your sandbox project by hand in [Connecting to GCP](../state/google-provider.md#3-create-a-sandbox-project), and every example uses it through `var.project_id`. Real projects are often split the same way: a platform team owns the project factory, and application teams' Terraform runs **inside** the projects it creates.
 
 ## Enabling APIs: `google_project_service`
 
-Every GCP service sits behind an API that must be enabled in the project before anything can use it. In [Set up GCP](../state/gcp-setup.md#5-enable-the-base-apis) you enabled four by hand. From now on, configurations enable what they need themselves. From [`main.tf`](../../examples/gcp-foundations/projects-and-apis/main.tf):
+Every GCP service sits behind an API that must be enabled in the project before anything can use it. A new project starts with only a few, such as Cloud Storage, which is why Part 2 needed nothing extra.
+
+Terraform enables APIs through two APIs of its own, so enable those two by hand, once per project:
+
+```bash
+gcloud services enable \
+  serviceusage.googleapis.com \
+  cloudresourcemanager.googleapis.com
+```
+
+From now on, configurations enable what they need themselves. From [`main.tf`](../../examples/gcp-foundations/projects-and-apis/main.tf):
 
 ```hcl
 locals {
@@ -235,7 +245,7 @@ provider "google" {
 }
 ```
 
-> 💡 **Quota project errors.** Some APIs bill requests to a "quota project". With your personal credentials that's set by `gcloud auth application-default set-quota-project` from [Set up GCP](../state/gcp-setup.md#3-create-a-sandbox-project). If you still see errors mentioning a quota project or `X-Goog-User-Project`, set `user_project_override = true` and `billing_project = var.project_id` in the provider block.
+> 💡 **Quota project errors.** Some APIs bill requests to a "quota project". With your personal credentials that's set by `gcloud auth application-default set-quota-project` from [Connecting to GCP](../state/google-provider.md#3-create-a-sandbox-project). If you still see errors mentioning a quota project or `X-Goog-User-Project`, set `user_project_override = true` and `billing_project = var.project_id` in the provider block.
 
 ## Labeling everything
 

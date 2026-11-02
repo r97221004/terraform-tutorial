@@ -1,7 +1,4 @@
-output "bucket" {
-  description = "The bucket's name and the location it was created in."
-  value = {
-    name     = google_storage_bucket.example.name
-    location = google_storage_bucket.example.location
-  }
+output "bucket_url" {
+  description = "The bucket's gs:// URL."
+  value       = google_storage_bucket.first.url
 }
