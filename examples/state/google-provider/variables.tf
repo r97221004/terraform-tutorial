@@ -8,9 +8,3 @@ variable "region" {
   type        = string
   default     = "us-central1"
 }
-
-variable "dr_region" {
-  description = "Disaster-recovery region for the aliased provider."
-  type        = string
-  default     = "us-east1"
-}

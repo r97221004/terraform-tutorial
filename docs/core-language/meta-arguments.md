@@ -4,7 +4,7 @@
 
 ---
 
-Arguments like `filename` and `content` are defined by the provider and passed to whatever it manages. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. A fifth, `provider`, picks which provider configuration a resource uses; you'll meet it in [Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias). This chapter covers the other four.
+Arguments like `filename` and `content` are defined by the provider and passed to whatever it manages. **Meta-arguments** are different: they're defined by Terraform itself, work on every resource type, and change **how Terraform handles the resource**: how many copies to make, what order to make them in, and what to do when they change. A fifth, `provider`, picks which provider configuration a resource uses; this guide doesn't need it. This chapter covers the other four.
 
 | Meta-argument | What it controls |
 |---|---|
@@ -12,7 +12,6 @@ Arguments like `filename` and `content` are defined by the provider and passed t
 | `for_each` | make one copy per element of a map or set |
 | `depends_on` | add an ordering that references can't express |
 | `lifecycle` | how changes are applied: guards, ignored attributes, replacement behavior, pre/postconditions |
-| `provider` | which provider configuration to use ([Connecting to GCP](../state/google-provider.md#two-configurations-of-one-provider-alias)) |
 
 ## Before you start
 
@@ -609,8 +608,8 @@ terraform plan -var 'models=["llama-3-1-8b","qwen2-5-7b","mixtral-8x7b"]'   # on
 terraform destroy
 ```
 
-That's the end of Part 1. You can now read and write any Terraform configuration, and everything so far ran on your own disk. Part 2 connects Terraform to GCP, starting with [Connecting to GCP](../state/google-provider.md), and then turns to the file that makes it all work: state.
+That's the end of Part 1. You can now read and write any Terraform configuration, and everything so far ran on your own disk. Part 2 connects Terraform to GCP, starting with [Set up GCP](../state/gcp-setup.md), and then turns to the file that makes it all work: state.
 
 ---
 
-[← Expressions & Functions](expressions.md) · [↑ Contents](../../README.md) · [Connecting to GCP →](../state/google-provider.md)
+[← Expressions & Functions](expressions.md) · [↑ Contents](../../README.md) · [Set up GCP →](../state/gcp-setup.md)

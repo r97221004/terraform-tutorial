@@ -247,12 +247,9 @@ provider "google" {
 
 `random` and `local` need no settings at all, so this example has no `provider` block. Terraform uses an empty default configuration for them.
 
-Two more features build on `provider` blocks, and both only make sense with a configurable provider:
+A configurable provider can also set **provider-wide defaults**, such as the google provider's `default_labels`, which apply to every resource the provider creates.
 
-- **`alias`** gives one provider a second configuration, such as a second region or project, and a resource opts in with `provider = google.dr`.
-- **Provider-wide defaults** such as the google provider's `default_labels` apply a setting to every resource the provider creates.
-
-You'll configure the google provider, with both features, in [Connecting to GCP](../state/google-provider.md), the first chapter that creates real cloud resources.
+You'll configure the google provider in [Connecting to GCP](../state/google-provider.md), the first chapter that creates real cloud resources.
 
 ## Apply it
 

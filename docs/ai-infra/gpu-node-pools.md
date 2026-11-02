@@ -17,7 +17,7 @@ terraform init
 
 ### GPU quota, first
 
-**A new project can't create any GPUs.** Quota for GPUs starts at zero, and free trial accounts can't get any (see [Connecting to GCP](../state/google-provider.md#3-create-a-sandbox-project)). Check yours:
+**A new project can't create any GPUs.** Quota for GPUs starts at zero, and free trial accounts can't get any (see [Set up GCP](../state/gcp-setup.md#3-create-a-sandbox-project)). Check yours:
 
 ```bash
 gcloud compute regions describe "$TF_VAR_region" \

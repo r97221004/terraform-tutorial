@@ -106,7 +106,7 @@ Error: Attempted to load application default credentials since neither `credenti
 ```
 
 **Cause:** Application Default Credentials aren't set up. `gcloud auth login` alone isn't enough.
-**Fix:** `gcloud auth application-default login` ([Connecting to GCP](../state/google-provider.md#2-log-in-twice)). If Terraform acts as the **wrong** account, run it again, and check with `gcloud auth application-default print-access-token`.
+**Fix:** `gcloud auth application-default login` ([Set up GCP](../state/gcp-setup.md#2-log-in-twice)). If Terraform acts as the **wrong** account, run it again, and check with `gcloud auth application-default print-access-token`.
 
 ### Project not set, or the wrong project
 

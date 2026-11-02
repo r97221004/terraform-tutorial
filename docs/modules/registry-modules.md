@@ -158,6 +158,8 @@ provider "google-beta" {
 }
 ```
 
+`google-beta` is a second provider, built from the same code as `google`, that adds GCP's preview features. Use `google` by default; a resource opts in with `provider = google-beta` only when it needs a preview feature. The two are released together with the same version numbers, so pin both to the same range and configure them the same way.
+
 What to check in any module:
 
 - **What resources does it create?** The Registry's **Resources** tab lists them. Make sure there's nothing you didn't expect (an extra service account, a broad IAM grant).
