@@ -179,7 +179,7 @@ gcloud config get-value project
 # tf-tutorial-3fa9c1
 
 grep quota_project_id ~/.config/gcloud/application_default_credentials.json
-#   "quota_project_id": "tf-tutorial-3fa9c1"
+#   "quota_project_id": "tf-tutorial-3fa9c1",
 ```
 
 Both should print your project ID. The second command reads the ADC file directly, since gcloud has no command that prints ADC's quota project. If `grep` prints nothing, run `set-quota-project` again and read its error.
