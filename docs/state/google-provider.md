@@ -215,6 +215,24 @@ gcloud billing budgets create \
 
 That emails the billing account's admins at 50%, 90%, and 100% of $20 spent in a month on this project. Change the amount to suit you, but keep the alert.
 
+Check that the budget exists:
+
+```bash
+gcloud billing budgets list --billing-account="$BILLING_ACCOUNT"
+# amount:
+#   specifiedAmount:
+#     currencyCode: USD
+#     units: '20'
+# budgetFilter:
+#   ...
+#   projects:
+#   - projects/123456789012
+# displayName: tf-tutorial budget
+# ...
+```
+
+Look for `displayName: tf-tutorial budget` and your amount. Under `projects`, GCP shows the project **number**, not the ID; `gcloud projects describe "$PROJECT_ID"` prints it as `projectNumber` if you want to compare.
+
 The currency in `--budget-amount` must match your billing account's currency. If your account bills in another currency, the command fails with `INVALID_ARGUMENT`; use your own currency code and a similar amount, such as `600TWD` or `3000JPY`. The currency is shown in the Console under **Billing → Account management**.
 
 > 💡 **A budget is an alarm, not a brake.** It sends email; it does **not** stop or delete anything. Spending keeps going past 100% until you destroy the resources. That's why every chapter ends with a cleanup step, and why [Cleanup](../capstone/cleanup.md) ends by checking the bill.
@@ -226,15 +244,16 @@ If the command fails with `PERMISSION_DENIED`, your account isn't a Billing Acco
 Back to the second half of the identity. A credential only says **who** you are. What you may do is decided by the **roles** that identity holds in the project. Check yours:
 
 ```bash
-gcloud projects get-iam-policy "$PROJECT_ID" \
-  --flatten="bindings[].members" \
-  --filter="bindings.members:user:$(gcloud config get-value account)" \
-  --format="value(bindings.role)"
+gcloud projects get-iam-policy "$PROJECT_ID"
+# bindings:
+# - members:
+#   - user:you@example.com
+#   role: roles/owner
+# etag: BwYc1a2b3c4=
+# version: 1
 ```
 
-```
-roles/owner
-```
+Each entry under `bindings` is one role and the identities that hold it. Find your email under `members`: the `role` next to it is yours.
 
 You created the project, so you're its **Owner**, which allows everything, including creating buckets. That's fine for a personal sandbox. In a shared project you'd hold narrower roles, such as `roles/storage.admin` for buckets only. [IAM & Service Accounts](../gcp-foundations/iam.md) covers how to grant them with Terraform.
 
@@ -276,22 +295,27 @@ resource "google_storage_bucket" "first" {
 
 Every GCP example from here on uses these same two variables. This example gives `region` a default of `us-central1`, but not every later example does, and later chapters also pass `$TF_VAR_region` to gcloud commands, so set it anyway. `us-central1` is used throughout because it has broad GPU availability, including the L4 GPUs in Part 5.
 
-Set them, and save all four variables from this chapter so new shells have them too:
+Set them:
 
 ```bash
 export TF_VAR_project_id="$PROJECT_ID"
 export TF_VAR_region="us-central1"
+```
 
-# Append the current values to your shell's startup file
-RC_FILE=~/.bashrc    # on zsh: RC_FILE=~/.zshrc
-cat >> "$RC_FILE" <<EOF
-export PROJECT_ID="$PROJECT_ID"
-export BILLING_ACCOUNT="$BILLING_ACCOUNT"
+New shells won't have any of this chapter's variables. Print your values:
+
+```bash
+echo $PROJECT_ID
+echo $BILLING_ACCOUNT
+```
+
+Then open `~/.bashrc` (`~/.zshrc` on zsh) in an editor, for example with `nano ~/.bashrc`, and add these lines at the end, with your own values:
+
+```bash
+export PROJECT_ID="tf-tutorial-3fa9c1"
+export BILLING_ACCOUNT="0X0X0X-0X0X0X-0X0X0X"
 export TF_VAR_project_id="$PROJECT_ID"
 export TF_VAR_region="us-central1"
-EOF
-
-tail -4 "$RC_FILE"   # check: your own project ID and billing account, not empty strings
 ```
 
 Now run the workflow:
