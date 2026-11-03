@@ -110,6 +110,7 @@ The login commands you'll use most, grouped by which credential set they touch:
 | `gcloud auth list` | gcloud CLI | List logged-in accounts; `*` marks the active one |
 | `gcloud config get-value account` | gcloud CLI | Print the active account |
 | `gcloud config set account EMAIL` | gcloud CLI | Switch the active account |
+| `gcloud config list` | gcloud CLI | Show all gcloud settings, including the active account and project |
 | `gcloud auth revoke EMAIL` | gcloud CLI | Log an account out |
 | `gcloud auth application-default login` | ADC | Log in for Terraform |
 | `gcloud auth application-default print-access-token` | ADC | Print a token; fails if ADC isn't set up |
