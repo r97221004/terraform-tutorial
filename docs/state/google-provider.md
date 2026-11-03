@@ -200,6 +200,17 @@ These `export` variables live only in the current shell. If you open a new termi
 
 Do this before creating any resource. A forgotten GKE cluster or GPU node is the classic way a learning project turns into a surprise bill.
 
+The budget amount must be in your billing account's currency. Check which one it uses:
+
+```bash
+gcloud billing accounts describe "$BILLING_ACCOUNT"
+# currencyCode: USD
+# displayName: My Billing Account
+# ...
+```
+
+The command below uses `20USD`. If your `currencyCode` is different, change `--budget-amount` to a similar amount in your currency, such as `600TWD` or `3000JPY`. Otherwise it fails with `INVALID_ARGUMENT`.
+
 ```bash
 gcloud services enable billingbudgets.googleapis.com
 
@@ -232,8 +243,6 @@ gcloud billing budgets list --billing-account="$BILLING_ACCOUNT"
 ```
 
 Look for `displayName: tf-tutorial budget` and your amount. Under `projects`, GCP shows the project **number**, not the ID; `gcloud projects describe "$PROJECT_ID"` prints it as `projectNumber` if you want to compare.
-
-The currency in `--budget-amount` must match your billing account's currency. If your account bills in another currency, the command fails with `INVALID_ARGUMENT`; use your own currency code and a similar amount, such as `600TWD` or `3000JPY`. The currency is shown in the Console under **Billing → Account management**.
 
 > 💡 **A budget is an alarm, not a brake.** It sends email; it does **not** stop or delete anything. Spending keeps going past 100% until you destroy the resources. That's why every chapter ends with a cleanup step, and why [Cleanup](../capstone/cleanup.md) ends by checking the bill.
 
