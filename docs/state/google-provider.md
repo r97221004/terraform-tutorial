@@ -102,6 +102,19 @@ If the two emails differ, run `gcloud auth application-default login` again with
 
 > 🔑 **No service account keys.** Many older tutorials have you download a service account JSON key and set `GOOGLE_APPLICATION_CREDENTIALS`. Don't. A key is a long-lived password that ends up in Downloads folders, laptop backups, and Git history. In this guide you authenticate as yourself locally, and CI uses keyless Workload Identity Federation (see [CI/CD](../team-workflow/ci-cd.md)).
 
+The login commands you'll use most, grouped by which credential set they touch:
+
+| Command | Credential set | What it does |
+| --- | --- | --- |
+| `gcloud auth login` | gcloud CLI | Log in for gcloud commands |
+| `gcloud auth list` | gcloud CLI | List logged-in accounts; `*` marks the active one |
+| `gcloud config get-value account` | gcloud CLI | Print the active account |
+| `gcloud config set account EMAIL` | gcloud CLI | Switch the active account |
+| `gcloud auth revoke EMAIL` | gcloud CLI | Log an account out |
+| `gcloud auth application-default login` | ADC | Log in for Terraform |
+| `gcloud auth application-default print-access-token` | ADC | Print a token; fails if ADC isn't set up |
+| `gcloud auth application-default set-quota-project PROJECT_ID` | ADC | Set the quota project ([step 3](#3-prep-create-a-sandbox-project)) |
+
 ## 3. Prep: create a sandbox project
 
 Use a **brand-new project** for this guide. Then nothing you do can touch real workloads, IAM experiments stay contained, and if cleanup ever goes wrong you can delete the whole project as a last resort.
@@ -113,6 +126,8 @@ export PROJECT_ID="tf-tutorial-$(openssl rand -hex 3)"   # e.g. tf-tutorial-3fa9
 gcloud projects create "$PROJECT_ID" --name="Terraform tutorial"
 ```
 
+If this fails, the usual causes are a new account that hasn't accepted the Google Cloud terms yet, or an account that has hit its project limit. Create the project in the [Console](https://console.cloud.google.com/projectcreate) instead, which shows the terms or the limit, then set `PROJECT_ID` to the ID it shows.
+
 A project needs a **billing account** before it can create most resources. Find yours:
 
 ```bash
@@ -122,6 +137,8 @@ gcloud billing accounts list
 ```
 
 If the list is empty, you don't have a billing account yet. Open the [Google Cloud Console](https://console.cloud.google.com/), start the free trial (or go to **Billing → Create account**), add a payment method, then run the list command again.
+
+> ⚠️ **Free trial accounts can't use GPUs.** The free trial credit covers Parts 2–4 easily, but GCP doesn't allow GPUs on free trial billing accounts. Before Part 5 you'll need to [upgrade to a paid account](https://cloud.google.com/free/docs/free-cloud-features#how-to-upgrade). Your remaining credit carries over. You'll also request GPU quota then. Both are covered in [GPU Node Pools](../ai-infra/gpu-node-pools.md).
 
 Link it to the project:
 
@@ -139,9 +156,17 @@ gcloud auth application-default set-quota-project "$PROJECT_ID"
 
 Some Google APIs need to know which project to count your requests against. That's the quota project. These two lines tell them to use your sandbox, for gcloud and for Terraform. This is the fix for the warning from step 2.
 
-These `export` variables live only in the current shell. If you open a new terminal before the end of this chapter, set `PROJECT_ID` and `BILLING_ACCOUNT` again first, or the commands below run with empty values. Step 6 shows how to make them permanent.
+The project commands you'll use most:
 
-> ⚠️ **Free trial accounts can't use GPUs.** The free trial credit covers Parts 2–4 easily, but GCP doesn't allow GPUs on free trial billing accounts. Before Part 5 you'll need to [upgrade to a paid account](https://cloud.google.com/free/docs/free-cloud-features#how-to-upgrade). Your remaining credit carries over. You'll also request GPU quota then. Both are covered in [GPU Node Pools](../ai-infra/gpu-node-pools.md).
+| Command | What it does |
+| --- | --- |
+| `gcloud projects list` | List the projects your account can access |
+| `gcloud config get-value project` | Print gcloud's default project |
+| `gcloud config set project PROJECT_ID` | Set gcloud's default project |
+
+The default project applies to gcloud only. Terraform takes its project from `var.project_id` in the provider block, as you'll see in [step 6](#6-your-first-resource-a-gcs-bucket).
+
+These `export` variables live only in the current shell. If you open a new terminal before the end of this chapter, set `PROJECT_ID` and `BILLING_ACCOUNT` again first, or the commands below run with empty values. Step 6 shows how to make them permanent.
 
 ## 4. Prep: create a budget alert, now
 
@@ -229,15 +254,16 @@ Set them, and save all four variables from this chapter so new shells have them 
 export TF_VAR_project_id="$PROJECT_ID"
 export TF_VAR_region="us-central1"
 
-# Append the current values to ~/.bashrc (use ~/.zshrc on zsh)
-cat >> ~/.bashrc <<EOF
+# Append the current values to your shell's startup file
+RC_FILE=~/.bashrc    # on zsh: RC_FILE=~/.zshrc
+cat >> "$RC_FILE" <<EOF
 export PROJECT_ID="$PROJECT_ID"
 export BILLING_ACCOUNT="$BILLING_ACCOUNT"
 export TF_VAR_project_id="$PROJECT_ID"
 export TF_VAR_region="us-central1"
 EOF
 
-tail -4 ~/.bashrc    # check: your own project ID and billing account, not empty strings
+tail -4 "$RC_FILE"   # check: your own project ID and billing account, not empty strings
 ```
 
 Now run the workflow:
@@ -258,6 +284,8 @@ bucket_url = "gs://tf-tutorial-3fa9c1-first-bucket"
 ```
 
 The bucket shows up in the list, and in the Console under **Cloud Storage → Buckets**. Creating it proves both halves: the credential let Terraform in, and the role let it create a bucket.
+
+Unlike the budget in step 4, the bucket didn't need an API enabled first: new projects start with the Cloud Storage API already on. Most other services are off until you enable them, which [Projects & APIs](../gcp-foundations/projects-and-apis.md) does with Terraform. Until then, an error mentioning `SERVICE_DISABLED` or `API has not been used in project` means a missing API, not a missing role.
 
 ## Clean up
 
