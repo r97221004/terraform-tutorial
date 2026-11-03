@@ -90,12 +90,15 @@ The second login may end with a warning such as `Cannot find a quota project to 
 
 If `gcloud` works but `terraform plan` says `could not find default credentials`, you skipped the second login.
 
-The two logins can also point at different accounts without telling you. Check that they match:
+Each login asks you to pick an account, so the two can end up on different accounts without telling you. If you have more than one Google account, or Terraform later behaves differently from what gcloud shows, check that they match:
 
 ```bash
-gcloud config get-value account    # the gcloud CLI's account
-curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$(gcloud auth application-default print-access-token)" \
-  | grep '"email"'                 # the account Terraform acts as (ADC)
+# The gcloud CLI's account
+gcloud config get-value account
+
+# The account Terraform acts as (ADC): get an ADC token, then ask Google whose it is
+TOKEN=$(gcloud auth application-default print-access-token)
+curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$TOKEN" | grep email
 ```
 
 If the two emails differ, run `gcloud auth application-default login` again with the right account.
