@@ -9,7 +9,7 @@ Everything so far ran on your own disk. From here on, Terraform creates real res
 1. A **credential**: whose identity Terraform acts as.
 2. A **role**: what that identity is allowed to do in the project.
 
-This chapter sets up both, then proves they work by creating a bucket.
+This chapter sets up both, then proves they work by creating a bucket. In between the two, you'll create a sandbox project and a budget alert. The role check needs a project to check against, and the budget has to exist before anything that costs money.
 
 ## 1. Install the gcloud CLI
 
@@ -86,11 +86,23 @@ gcloud auth application-default login   # for Terraform (ADC)
 
 Each opens a browser. On WSL2 or a remote machine where no browser opens, add `--no-launch-browser` and paste the URL it prints into a browser on your laptop.
 
-If `gcloud` works but `terraform plan` says `could not find default credentials`, you skipped the second login. If both work but Terraform acts as the wrong account, run `gcloud auth application-default login` again. The two logins can point at different accounts without telling you.
+The second login may end with a warning such as `Cannot find a quota project to add to ADC`. That's expected: you don't have a project yet. Step 3 sets one.
+
+If `gcloud` works but `terraform plan` says `could not find default credentials`, you skipped the second login.
+
+The two logins can also point at different accounts without telling you. Check that they match:
+
+```bash
+gcloud config get-value account    # the gcloud CLI's account
+curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$(gcloud auth application-default print-access-token)" \
+  | grep '"email"'                 # the account Terraform acts as (ADC)
+```
+
+If the two emails differ, run `gcloud auth application-default login` again with the right account.
 
 > 🔑 **No service account keys.** Many older tutorials have you download a service account JSON key and set `GOOGLE_APPLICATION_CREDENTIALS`. Don't. A key is a long-lived password that ends up in Downloads folders, laptop backups, and Git history. In this guide you authenticate as yourself locally, and CI uses keyless Workload Identity Federation (see [CI/CD](../team-workflow/ci-cd.md)).
 
-## 3. Create a sandbox project
+## 3. Prep: create a sandbox project
 
 Use a **brand-new project** for this guide. Then nothing you do can touch real workloads, IAM experiments stay contained, and if cleanup ever goes wrong you can delete the whole project as a last resort.
 
@@ -101,27 +113,37 @@ export PROJECT_ID="tf-tutorial-$(openssl rand -hex 3)"   # e.g. tf-tutorial-3fa9
 gcloud projects create "$PROJECT_ID" --name="Terraform tutorial"
 ```
 
-A project needs a **billing account** before it can create most resources. Find yours and link it:
+A project needs a **billing account** before it can create most resources. Find yours:
 
 ```bash
 gcloud billing accounts list
 # ACCOUNT_ID            NAME                OPEN
 # 0X0X0X-0X0X0X-0X0X0X  My Billing Account  True
+```
 
+If the list is empty, you don't have a billing account yet. Open the [Google Cloud Console](https://console.cloud.google.com/), start the free trial (or go to **Billing → Create account**), add a payment method, then run the list command again.
+
+Link it to the project:
+
+```bash
 export BILLING_ACCOUNT="0X0X0X-0X0X0X-0X0X0X"   # yours, from the list above
 gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"
 ```
 
-Make it the default for gcloud, and tell ADC to bill API quota to it too:
+Make the project the default for gcloud, and set it as ADC's **quota project**:
 
 ```bash
 gcloud config set project "$PROJECT_ID"
 gcloud auth application-default set-quota-project "$PROJECT_ID"
 ```
 
+Some Google APIs need to know which project to count your requests against. That's the quota project. These two lines tell them to use your sandbox, for gcloud and for Terraform. This is the fix for the warning from step 2.
+
+These `export` variables live only in the current shell. If you open a new terminal before the end of this chapter, set `PROJECT_ID` and `BILLING_ACCOUNT` again first, or the commands below run with empty values. Step 6 shows how to make them permanent.
+
 > ⚠️ **Free trial accounts can't use GPUs.** The free trial credit covers Parts 2–4 easily, but GCP doesn't allow GPUs on free trial billing accounts. Before Part 5 you'll need to [upgrade to a paid account](https://cloud.google.com/free/docs/free-cloud-features#how-to-upgrade). Your remaining credit carries over. You'll also request GPU quota then. Both are covered in [GPU Node Pools](../ai-infra/gpu-node-pools.md).
 
-## 4. Create a budget alert, now
+## 4. Prep: create a budget alert, now
 
 Do this before creating any resource. A forgotten GKE cluster or GPU node is the classic way a learning project turns into a surprise bill.
 
@@ -140,13 +162,15 @@ gcloud billing budgets create \
 
 That emails the billing account's admins at 50%, 90%, and 100% of $20 spent in a month on this project. Change the amount to suit you, but keep the alert.
 
+The currency in `--budget-amount` must match your billing account's currency. If your account bills in another currency, the command fails with `INVALID_ARGUMENT`; use your own currency code and a similar amount, such as `600TWD` or `3000JPY`. The currency is shown in the Console under **Billing → Account management**.
+
 > 💡 **A budget is an alarm, not a brake.** It sends email; it does **not** stop or delete anything. Spending keeps going past 100% until you destroy the resources. That's why every chapter ends with a cleanup step, and why [Cleanup](../capstone/cleanup.md) ends by checking the bill.
 
 If the command fails with `PERMISSION_DENIED`, your account isn't a Billing Account Administrator or Costs Manager on that billing account. Create the budget in the Console under **Billing → Budgets & alerts** instead, or ask whoever owns the billing account.
 
 ## 5. Role: what that identity may do
 
-A credential only says **who** you are. What you may do is decided by the **roles** that identity holds in the project. Check yours:
+Back to the second half of the identity. A credential only says **who** you are. What you may do is decided by the **roles** that identity holds in the project. Check yours:
 
 ```bash
 gcloud projects get-iam-policy "$PROJECT_ID" \
@@ -193,16 +217,28 @@ resource "google_storage_bucket" "first" {
 ```
 
 - **`project`, `region`**: the defaults for every resource this provider creates. Bucket names are global across all of GCP, so the project ID in the name keeps yours unique.
-- **No credentials**: the provider finds the Application Default Credentials from [step 2](#2-credential-who-terraform-acts-as) by itself. Never put credentials in a provider block.
+- **No credentials**: the provider finds the Application Default Credentials from [step 2](#2-credential-who-terraform-acts-as) by itself. The provider does have a `credentials` argument, and older tutorials use it with `credentials = file("key.json")`. Don't: it needs a key file, and the key ends up next to your code.
 
-`project_id` and `region` are input variables with no hard-coded project. Terraform reads any environment variable named `TF_VAR_<name>` as the value of that variable, so set them once per shell:
+`project_id` and `region` are input variables with no hard-coded project. Terraform reads any environment variable named `TF_VAR_<name>` as the value of that variable.
+
+Every GCP example from here on uses these same two variables. This example gives `region` a default of `us-central1`, but not every later example does, and later chapters also pass `$TF_VAR_region` to gcloud commands, so set it anyway. `us-central1` is used throughout because it has broad GPU availability, including the L4 GPUs in Part 5.
+
+Set them, and save all four variables from this chapter so new shells have them too:
 
 ```bash
 export TF_VAR_project_id="$PROJECT_ID"
 export TF_VAR_region="us-central1"
-```
 
-Every GCP example from here on uses these same two variables. `us-central1` is used throughout because it has broad GPU availability, including the L4 GPUs in Part 5. New shells won't have these variables: add the three `export` lines (`PROJECT_ID`, `TF_VAR_project_id`, `TF_VAR_region`) to your `~/.bashrc` or `~/.zshrc`.
+# Append the current values to ~/.bashrc (use ~/.zshrc on zsh)
+cat >> ~/.bashrc <<EOF
+export PROJECT_ID="$PROJECT_ID"
+export BILLING_ACCOUNT="$BILLING_ACCOUNT"
+export TF_VAR_project_id="$PROJECT_ID"
+export TF_VAR_region="us-central1"
+EOF
+
+tail -4 ~/.bashrc    # check: your own project ID and billing account, not empty strings
+```
 
 Now run the workflow:
 
@@ -211,6 +247,14 @@ terraform init
 terraform plan    # Plan: 1 to add, 0 to change, 0 to destroy.
 terraform apply
 gcloud storage buckets list --format="value(name)"
+```
+
+`apply` ends by printing the example's one output, from [`outputs.tf`](../../examples/state/google-provider/outputs.tf):
+
+```
+Outputs:
+
+bucket_url = "gs://tf-tutorial-3fa9c1-first-bucket"
 ```
 
 The bucket shows up in the list, and in the Console under **Cloud Storage → Buckets**. Creating it proves both halves: the credential let Terraform in, and the role let it create a bucket.
@@ -223,16 +267,18 @@ terraform destroy
 
 An empty bucket costs nothing, but destroying at the end of every chapter is the habit that keeps later parts cheap.
 
+This destroys only the bucket. Keep the project and the budget alert: every later chapter uses the project, and the alert keeps watching until the end. [Cleanup](../capstone/cleanup.md) covers what to do with both when you finish the guide.
+
 ## Checkpoint
 
-1. `gcloud` works, but `terraform plan` fails with `could not find default credentials`. What's missing, and why doesn't adding settings to the `provider` block fix it?
+1. `gcloud` works, but `terraform plan` fails with `could not find default credentials`. What's missing, and why shouldn't you fix it with the `provider` block's `credentials` argument?
 2. `terraform apply` fails with `does not have storage.buckets.create access`. Is the credential wrong?
 3. Your $20 budget reaches 100%. Does GCP stop the resources?
 
 <details>
 <summary>Answer</summary>
 
-1. Application Default Credentials: run `gcloud auth application-default login`. The gcloud CLI's own login is a separate credential set, and the provider reads credentials from the environment, never from the `provider` block.
+1. Application Default Credentials: run `gcloud auth application-default login`. The gcloud CLI's own login is a separate credential set that Terraform never reads. The `credentials` argument would work, but only with a service account key file, the long-lived password this guide avoids. With ADC, the provider finds your login by itself.
 2. No. Terraform got in, so the credential works. The identity lacks a role that allows creating buckets; grant one, such as `roles/storage.admin`.
 3. No. A budget is an alert, not a spending cap. Destroying the billable resources, or deleting the sandbox project, stops new charges.
 
@@ -242,7 +288,7 @@ An empty bucket costs nothing, but destroying at the end of every chapter is the
 
 - **One sandbox project per learner or experiment.** Projects are free, and deleting one is the most complete cleanup there is.
 - **Set a budget alert before creating anything.** Remember it only warns.
-- **Keep gcloud and ADC on the same account.** When Terraform does something unexpected, `gcloud auth list` and `gcloud auth application-default print-access-token` are the first things to check.
+- **Keep gcloud and ADC on the same account.** When Terraform does something unexpected, compare the two emails with the commands in [step 2](#2-credential-who-terraform-acts-as) first.
 - **Keep credentials out of `provider` blocks**, and set `project` from a variable, never hard-coded.
 
 ---

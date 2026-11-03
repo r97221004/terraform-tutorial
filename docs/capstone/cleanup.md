@@ -133,7 +133,7 @@ If you set up [CI/CD](../team-workflow/ci-cd.md), destroy its Workload Identity 
 Billing data lags by several hours, so check the next day:
 
 - **Billing → Reports** in the Console, filtered to your project and grouped by **SKU**. GPU, GKE, and Compute Engine lines should drop to zero after today.
-- Your **budget alert** from [Connecting to GCP](../state/google-provider.md#4-create-a-budget-alert-now) keeps watching. Keep it until the next month's bill confirms nothing is running.
+- Your **budget alert** from [Connecting to GCP](../state/google-provider.md#4-prep-create-a-budget-alert-now) keeps watching. Keep it until the next month's bill confirms nothing is running.
 
 ## The last resort: delete the project
 
@@ -143,7 +143,7 @@ If anything resists cleanup, or you're done with the guide entirely, delete the 
 gcloud projects delete "$TF_VAR_project_id"
 ```
 
-The project enters a 30-day pending deletion period, during which it can be restored with `gcloud projects undelete`, and then everything in it is permanently deleted. This is why [Connecting to GCP](../state/google-provider.md#3-create-a-sandbox-project) had you create a dedicated project: deleting it is always a complete, safe cleanup.
+The project enters a 30-day pending deletion period, during which it can be restored with `gcloud projects undelete`, and then everything in it is permanently deleted. This is why [Connecting to GCP](../state/google-provider.md#3-prep-create-a-sandbox-project) had you create a dedicated project: deleting it is always a complete, safe cleanup.
 
 ## Checkpoint
 
