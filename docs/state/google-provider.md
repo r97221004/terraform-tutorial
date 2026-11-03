@@ -151,6 +151,18 @@ export BILLING_ACCOUNT="0X0X0X-0X0X0X-0X0X0X"   # yours, from the list above
 gcloud billing projects link "$PROJECT_ID" --billing-account="$BILLING_ACCOUNT"
 ```
 
+Check that the link worked:
+
+```bash
+gcloud billing projects describe "$PROJECT_ID"
+# billingAccountName: billingAccounts/0X0X0X-0X0X0X-0X0X0X
+# billingEnabled: true
+# name: projects/tf-tutorial-3fa9c1/billingInfo
+# projectId: tf-tutorial-3fa9c1
+```
+
+Look for `billingEnabled: true`. `false` means the project has no billing account, and the steps that create resources will fail. Run the link command again and read its error. The usual cause is a typo in `BILLING_ACCOUNT`, or a billing account that shows `False` in the `OPEN` column.
+
 Make the project the default for gcloud, and set it as ADC's **quota project**:
 
 ```bash
@@ -159,6 +171,18 @@ gcloud auth application-default set-quota-project "$PROJECT_ID"
 ```
 
 Some Google APIs need to know which project to count your requests against. That's the quota project. These two lines tell them to use your sandbox, for gcloud and for Terraform. This is the fix for the warning from step 2.
+
+Check both:
+
+```bash
+gcloud config get-value project
+# tf-tutorial-3fa9c1
+
+grep quota_project_id ~/.config/gcloud/application_default_credentials.json
+#   "quota_project_id": "tf-tutorial-3fa9c1"
+```
+
+Both should print your project ID. The second command reads the ADC file directly, since gcloud has no command that prints ADC's quota project. If `grep` prints nothing, run `set-quota-project` again and read its error.
 
 The project commands you'll use most:
 
