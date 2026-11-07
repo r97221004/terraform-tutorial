@@ -112,7 +112,7 @@ resource "google_storage_bucket" "models" {
 }
 ```
 
-The choices that matter for model weights:
+[Cloud Storage](../gcp-services/cloud-storage.md) covers locations, storage classes, and these settings in general. The choices that matter for model weights:
 
 - **Regional, in the GPUs' region.** A multi-region bucket (`US`) costs more and reads from GPUs in `us-central1` can cross regions. Weights are read every time a node starts a model server, so locality pays off quickly.
 - **Hierarchical namespace** stores folders as real folders instead of name prefixes. Tools that walk directory trees, such as the GCS FUSE mount vLLM reads through, list and open files faster. It must be chosen at creation time and needs uniform bucket-level access.

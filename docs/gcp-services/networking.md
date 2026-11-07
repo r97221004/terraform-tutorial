@@ -326,4 +326,4 @@ Without VMs this costs next to nothing, but destroy it anyway: the Part 6 chapte
 
 ---
 
-[← Secret Manager & Sensitive Values](../gcp-foundations/secrets.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)
+[← Secret Manager & Sensitive Values](../gcp-foundations/secrets.md) · [↑ Contents](../../README.md) · [Cloud Storage →](cloud-storage.md)

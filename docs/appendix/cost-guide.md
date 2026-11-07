@@ -15,6 +15,7 @@ Most of this guide costs nothing or cents. Part 6 and the capstone run a GKE clu
 | Getting Started, Part 1 | local files and generated values on your own machine | $0: nothing runs in the cloud |
 | Part 2 | buckets with a few small objects, state files | effectively $0 (fractions of a cent per month) |
 | Part 3: APIs, IAM, secrets | API enablement, service accounts, IAM, secrets | $0; a handful of secret versions is within the free tier |
+| Part 4: Cloud Storage | a bucket with a few KB of objects and their old versions | effectively $0 |
 | Part 4/5: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
 | Part 6: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
 | Part 6: GPU pool | `g2-standard-4` with an L4, Spot | **$0 at zero nodes; roughly $0.25–0.35 per hour per node** while a GPU Pod runs |
