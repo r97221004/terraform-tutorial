@@ -152,7 +152,7 @@ GKE upgrades the control plane and nodes automatically; the **release channel** 
   }
 ```
 
-- **`ip_allocation_policy`** makes the cluster VPC-native, taking Pod and Service IPs from the subnet's `pods` and `services` ranges, planned in [Networking](../gcp-services/networking.md#planning-ip-ranges).
+- **`ip_allocation_policy`** makes the cluster VPC-native, taking Pod and Service IPs from the subnet's `pods` and `services` ranges, planned in [Networking](../gcp-services/networking.md#preparing-for-gke-secondary-ranges).
 - **`enable_private_nodes`** gives nodes no public IP addresses. They reach the internet through the network's Cloud NAT, and Google APIs through Private Google Access.
 
 ### Reaching the control plane: the DNS endpoint

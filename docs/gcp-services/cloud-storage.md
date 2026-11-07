@@ -6,12 +6,7 @@
 
 **Cloud Storage (GCS)** is GCP's object storage: files of any size and type, such as images, videos, CSV exports, backups, and model weights, stored in **buckets** and read over HTTPS. You've already used it twice, for your [first resource](../state/google-provider.md#6-your-first-resource-a-gcs-bucket) and for [Terraform state](../state/remote-backend.md). This chapter covers the service itself: the choices every bucket makes, how to make data cheaper as it ages, and where Terraform's job ends and `gcloud storage` takes over.
 
-Every chapter in this part follows the same four steps for a new service:
-
-1. **What it does**: the concepts and the choices you'll have to make.
-2. **The Console**: the form you'd fill in by hand, and which Terraform argument each field becomes.
-3. **The minimum**: a resource with only the required arguments, and what the defaults give you.
-4. **The real configuration**: one argument at a time, each with its reason.
+Like [Networking](networking.md), the chapter goes in four steps: what the service does, the Console form, the minimal resource, and the real configuration.
 
 ## Before you start
 
