@@ -77,8 +77,8 @@ If you skipped `destroy` at the end of any chapter, those resources are still th
 
 | Directory | Costs while idle |
 |---|---|
-| `examples/ai-infra/gke-cluster` (and the rest of Part 5) | yes: cluster fee and system node |
-| `examples/gcp-foundations/networking`, `modules/*` networks | Cloud NAT, a little |
+| `examples/ai-infra/gke-cluster` (and the rest of Part 6) | yes: cluster fee and system node |
+| `examples/gcp-services/networking`, `modules/*` networks | Cloud NAT, a little |
 | `examples/modules/environments/envs/*/network` | Cloud NAT, a little |
 | everything else (buckets, service accounts, IAM, secrets) | cents or nothing, but delete it anyway |
 

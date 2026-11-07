@@ -104,7 +104,7 @@ Check: CKV_GCP_25: "Ensure Kubernetes Cluster is created with Private cluster en
 ...
 ```
 
-Every mistake in the file was caught, each one something an earlier chapter warned about: public buckets and uniform access in [Remote Backend](../state/remote-backend.md), basic roles in [IAM](../gcp-foundations/iam.md#iam-in-one-picture), SSH from anywhere in [Networking](../gcp-foundations/networking.md#firewall-rules), public nodes in [GKE Cluster](../ai-infra/gke-cluster.md#vpc-native-private-nodes). Scanners are how those lessons get enforced when nobody is reading carefully.
+Every mistake in the file was caught, each one something an earlier chapter warned about: public buckets and uniform access in [Remote Backend](../state/remote-backend.md), basic roles in [IAM](../gcp-foundations/iam.md#iam-in-one-picture), SSH from anywhere in [Networking](../gcp-services/networking.md#firewall-rules), public nodes in [GKE Cluster](../ai-infra/gke-cluster.md#vpc-native-private-nodes). Scanners are how those lessons get enforced when nobody is reading carefully.
 
 Both tools exit non-zero when they find something (`trivy config --exit-code 1` makes Trivy do so; Checkov does by default), so either one can fail a CI job.
 

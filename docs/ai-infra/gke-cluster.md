@@ -4,9 +4,9 @@
 
 ---
 
-Part 5 builds the AI platform layer by layer, and this chapter lays the base: a **GKE cluster** in the private network from Part 3, with private nodes, Workload Identity, and a small CPU node pool for system workloads. The next chapter adds GPUs to it; the ones after give Pods access to model weights and deploy a model server.
+Part 6 builds the AI platform layer by layer, and this chapter lays the base: a **GKE cluster** in the private network from Part 4, with private nodes, Workload Identity, and a small CPU node pool for system workloads. The next chapter adds GPUs to it; the ones after give Pods access to model weights and deploy a model server.
 
-> 💸 **This chapter starts costing money.** A GKE cluster with one `e2-standard-4` node runs roughly **$0.10–0.25 an hour** depending on free-tier credits (see [Cost](#cost) below). Keep the cluster for the rest of Part 5, and run the [cleanup](#clean-up) when you stop for the day.
+> 💸 **This chapter starts costing money.** A GKE cluster with one `e2-standard-4` node runs roughly **$0.10–0.25 an hour** depending on free-tier credits (see [Cost](#cost) below). Keep the cluster for the rest of Part 6, and run the [cleanup](#clean-up) when you stop for the day.
 
 ## Before you start
 
@@ -19,7 +19,7 @@ terraform init
 - network in ../../modules/writing-modules/modules/vpc
 ```
 
-The configuration reuses the network module from [Writing Modules](../modules/writing-modules.md) with the same names and ranges as [Networking](../gcp-foundations/networking.md). If you still have that chapter's network applied, destroy it first.
+The configuration reuses the network module from [Writing Modules](../modules/writing-modules.md) with the same names and ranges as [Networking](../gcp-services/networking.md). If you still have that chapter's network applied, destroy it first.
 
 ## What you're building
 
@@ -152,7 +152,7 @@ GKE upgrades the control plane and nodes automatically; the **release channel** 
   }
 ```
 
-- **`ip_allocation_policy`** makes the cluster VPC-native, taking Pod and Service IPs from the subnet's `pods` and `services` ranges, planned in [Networking](../gcp-foundations/networking.md#planning-ip-ranges).
+- **`ip_allocation_policy`** makes the cluster VPC-native, taking Pod and Service IPs from the subnet's `pods` and `services` ranges, planned in [Networking](../gcp-services/networking.md#planning-ip-ranges).
 - **`enable_private_nodes`** gives nodes no public IP addresses. They reach the internet through the network's Cloud NAT, and Google APIs through Private Google Access.
 
 ### Reaching the control plane: the DNS endpoint

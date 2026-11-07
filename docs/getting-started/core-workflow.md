@@ -543,7 +543,7 @@ terraform destroy
 cd ~ && rm -rf ~/terraform-first
 ```
 
-Nothing here costs money, but tear down what you create at the end of every chapter anyway. It's the habit that keeps GPU node pools from running all weekend in Part 5.
+Nothing here costs money, but tear down what you create at the end of every chapter anyway. It's the habit that keeps GPU node pools from running all weekend in Part 6.
 
 ---
 

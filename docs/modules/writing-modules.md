@@ -4,7 +4,7 @@
 
 ---
 
-You've written the network for the AI platform once, in [Networking](../gcp-foundations/networking.md). Now you need it in dev and prod, maybe in a second region, and the GKE configuration needs to know its subnet and range names. Copying 100 lines of HCL into each place means fixing every bug several times. A **module** packages those lines behind a small interface: a few inputs in, a few outputs out.
+You've written the network for the AI platform once, in [Networking](../gcp-services/networking.md). Now you need it in dev and prod, maybe in a second region, and the GKE configuration needs to know its subnet and range names. Copying 100 lines of HCL into each place means fixing every bug several times. A **module** packages those lines behind a small interface: a few inputs in, a few outputs out.
 
 ## Before you start
 
@@ -412,4 +412,4 @@ terraform destroy
 
 ---
 
-[← Secret Manager & Sensitive Values](../gcp-foundations/secrets.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)
+[← Networking](../gcp-services/networking.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)

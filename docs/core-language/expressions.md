@@ -321,7 +321,7 @@ IP planning is arithmetic, and getting it wrong means overlapping subnets. `cidr
     }
 ```
 
-`newbits = 4` turns the `/16` into `/20`s (16 + 4), and `netnum` picks the 1st, 2nd, 3rd of them. `cidrhost("10.10.0.0/20", 1)` gives a single address, `"10.10.0.1"`. [VPC Networking](../gcp-foundations/networking.md) uses these to plan the subnet and the GKE Pod and Service ranges.
+`newbits = 4` turns the `/16` into `/20`s (16 + 4), and `netnum` picks the 1st, 2nd, 3rd of them. `cidrhost("10.10.0.0/20", 1)` gives a single address, `"10.10.0.1"`. [VPC Networking](../gcp-services/networking.md) uses these to plan the subnet and the GKE Pod and Service ranges.
 
 ### Encoding: `jsonencode`, `yamlencode`, `base64encode`
 

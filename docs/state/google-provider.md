@@ -40,7 +40,7 @@ gcloud version
 
 On macOS and other platforms: [Install the gcloud CLI](https://cloud.google.com/sdk/docs/install).
 
-Part 5 also needs `kubectl` and the GKE auth plugin. You'll install those when you get there.
+Part 6 also needs `kubectl` and the GKE auth plugin. You'll install those when you get there.
 
 ## 2. Credential: who Terraform acts as
 
@@ -142,7 +142,7 @@ gcloud billing accounts list
 
 If the list is empty, you don't have a billing account yet. Open the [Google Cloud Console](https://console.cloud.google.com/), start the free trial (or go to **Billing → Create account**), add a payment method, then run the list command again.
 
-> ⚠️ **Free trial accounts can't use GPUs.** The free trial credit covers Parts 2–4 easily, but GCP doesn't allow GPUs on free trial billing accounts. Before Part 5 you'll need to [upgrade to a paid account](https://cloud.google.com/free/docs/free-cloud-features#how-to-upgrade). Your remaining credit carries over. You'll also request GPU quota then. Both are covered in [GPU Node Pools](../ai-infra/gpu-node-pools.md).
+> ⚠️ **Free trial accounts can't use GPUs.** The free trial credit covers Parts 2–5 easily, but GCP doesn't allow GPUs on free trial billing accounts. Before Part 6 you'll need to [upgrade to a paid account](https://cloud.google.com/free/docs/free-cloud-features#how-to-upgrade). Your remaining credit carries over. You'll also request GPU quota then. Both are covered in [GPU Node Pools](../ai-infra/gpu-node-pools.md).
 
 Link it to the project:
 
@@ -302,7 +302,7 @@ resource "google_storage_bucket" "first" {
 
 `project_id` and `region` are input variables with no hard-coded project. Terraform reads any environment variable named `TF_VAR_<name>` as the value of that variable.
 
-Every GCP example from here on uses these same two variables. This example gives `region` a default of `us-central1`, but not every later example does, and later chapters also pass `$TF_VAR_region` to gcloud commands, so set it anyway. `us-central1` is used throughout because it has broad GPU availability, including the L4 GPUs in Part 5.
+Every GCP example from here on uses these same two variables. This example gives `region` a default of `us-central1`, but not every later example does, and later chapters also pass `$TF_VAR_region` to gcloud commands, so set it anyway. `us-central1` is used throughout because it has broad GPU availability, including the L4 GPUs in Part 6.
 
 Set them:
 

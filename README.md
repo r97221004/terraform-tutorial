@@ -20,7 +20,7 @@ Many Terraform tutorials stop at "create one VM". This one keeps going to the in
 
 Every concept comes with a runnable example under `examples/`. They all build toward one concrete outcome: **an LLM inference platform on GKE**: a custom VPC, a GKE cluster, a Spot GPU node pool that scales to zero, a GCS bucket for model weights, Workload Identity, and vLLM serving a small open model. Then you tear it all down and confirm the bill stops.
 
-> **No prior Terraform experience assumed.** If you're new to Terraform, read top to bottom. If you already know the basics, jump to the [Table of Contents](#table-of-contents). Kubernetes basics help in Part 5; see the companion [k8s-tutorial](https://github.com/r97221004/k8s-tutorial).
+> **No prior Terraform experience assumed.** If you're new to Terraform, read top to bottom. If you already know the basics, jump to the [Table of Contents](#table-of-contents). Kubernetes basics help in Part 6; see the companion [k8s-tutorial](https://github.com/r97221004/k8s-tutorial).
 
 **What you'll have built by the capstone:**
 
@@ -88,7 +88,8 @@ By the end you'll be able to:
 - **Explain the Terraform model**: configuration, providers, the plan/apply loop, and why state exists.
 - **Write idiomatic HCL**: variables, outputs, `for_each`, `lifecycle`, and functions, without copy-paste.
 - **Run state like a team**: a GCS backend with locking, plus drift detection and refactoring with `moved`, `import`, and `removed`.
-- **Build GCP foundations correctly**: enabled APIs, least-privilege IAM (and the `_iam_policy` vs. `_iam_member` trap), a private VPC with Cloud NAT, and secrets.
+- **Build GCP foundations correctly**: enabled APIs, least-privilege IAM (and the `_iam_policy` vs. `_iam_member` trap), and secrets.
+- **Provision core GCP services**: a private VPC with Cloud NAT and tight firewall rules.
 - **Package and promote**: write your own modules, consume registry modules, and separate dev from prod.
 - **Stand up AI infrastructure**: GKE, GPU node pools with Spot and scale-to-zero, Workload Identity, and model storage.
 - **Ship it safely**: `terraform test`, linting, security scanning, and GitHub Actions that authenticate to GCP with no JSON keys.
@@ -100,9 +101,9 @@ Every section is hands-on: you write some HCL, run `terraform plan`, read the di
 
 - A Linux, macOS, or WSL2 shell with basic command-line familiarity.
 - Terraform **1.11+**. [Setup](docs/getting-started/setup.md) installs it. That's all Getting Started and Part 1 need: they run on your own machine.
-- From Part 2 on, a **Google Cloud account with billing enabled** and the **gcloud CLI**. Free trial credit covers Parts 2–4, but **free trial accounts can't use GPUs**: Part 5 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Connecting to GCP](docs/state/google-provider.md) walks you through all of it.
+- From Part 2 on, a **Google Cloud account with billing enabled** and the **gcloud CLI**. Free trial credit covers Parts 2–5, but **free trial accounts can't use GPUs**: Part 6 and the capstone need a paid account (your remaining credit carries over) and GPU quota. [Connecting to GCP](docs/state/google-provider.md) walks you through all of it.
 
-> 💸 **About cost.** Getting Started and Part 1 cost nothing: they only create local files. Parts 2–4 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 5 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Part 2 starts by having you create a **budget alert** before any cloud resource, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
+> 💸 **About cost.** Getting Started and Part 1 cost nothing: they only create local files. Parts 2–5 use resources that are free or cost cents (GCS buckets, VPCs, service accounts, firewall rules). Part 6 and the capstone run **GKE and GPUs, which bill by the hour**. Every chapter ends with a cleanup step, Part 2 starts by having you create a **budget alert** before any cloud resource, and the [Cost Guide](docs/appendix/cost-guide.md) lists what each part costs. Use a dedicated sandbox project so that deleting the whole project is always your last-resort cleanup.
 
 > 📋 **About the output shown.** Plans, errors, and test results in the docs come from real runs of Terraform 1.16 and google provider 8.7, against a sandbox project ID or local mock APIs, and of Terraform 1.17 for the local-only chapters. Your project ID, project number, emails, lock IDs, and timestamps will differ; a few outputs that depend on running cloud resources (such as `kubectl get nodes`) are illustrative and say so where it matters.
 
@@ -142,16 +143,19 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup come
 
 - [**Projects & APIs**](docs/gcp-foundations/projects-and-apis.md): enabling services and labeling everything.
 - [**IAM & Service Accounts**](docs/gcp-foundations/iam.md): least privilege, and the authoritative-binding trap.
-- [**Networking**](docs/gcp-foundations/networking.md): VPC, secondary ranges, Cloud NAT, and firewall rules.
 - [**Secret Manager & Sensitive Values**](docs/gcp-foundations/secrets.md): secrets, and why state is sensitive.
 
-**Part 4 — Modules & Environments**
+**Part 4 — GCP Services**
+
+- [**Networking**](docs/gcp-services/networking.md): VPC, secondary ranges, Cloud NAT, and firewall rules.
+
+**Part 5 — Modules & Environments**
 
 - [**Writing Modules**](docs/modules/writing-modules.md): reusable units with a clean interface.
 - [**Using Registry Modules**](docs/modules/registry-modules.md): `terraform-google-modules`, pinned and understood.
 - [**Environments**](docs/modules/environments.md): dev and prod without copy-paste drift.
 
-**Part 5 — Kubernetes & AI Infra on GCP**
+**Part 6 — Kubernetes & AI Infra on GCP**
 
 - [**GKE Cluster**](docs/ai-infra/gke-cluster.md): Autopilot vs. Standard, private clusters, and release channels.
 - [**GPU Node Pools**](docs/ai-infra/gpu-node-pools.md): taints, drivers, Spot, scale-to-zero, and quotas.
@@ -159,7 +163,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup come
 - [**Model Storage & Artifact Registry**](docs/ai-infra/model-storage.md): where weights and images live.
 - [**Kubernetes & Helm Providers**](docs/ai-infra/kubernetes-and-helm.md): deploy onto GKE, and the two-stage apply problem.
 
-**Part 6 — Team Workflow**
+**Part 7 — Team Workflow**
 
 - [**Testing & Code Quality**](docs/team-workflow/testing-and-quality.md): `fmt`, `validate`, tflint, and `terraform test`.
 - [**Security Scanning**](docs/team-workflow/security-scanning.md): Trivy and Checkov before apply.

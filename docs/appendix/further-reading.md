@@ -70,7 +70,7 @@ flowchart LR
 
 ## The companion guide
 
-- **[k8s-tutorial](https://github.com/r97221004/k8s-tutorial)**: Kubernetes from the ground up, for the cluster side of everything in Part 5.
+- **[k8s-tutorial](https://github.com/r97221004/k8s-tutorial)**: Kubernetes from the ground up, for the cluster side of everything in Part 6.
 
 ---
 

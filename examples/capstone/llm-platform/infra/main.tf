@@ -1,4 +1,4 @@
-# The LLM platform's infrastructure: the same modules as Parts 4-5, in one place.
+# The LLM platform's infrastructure: the same modules as Parts 5-6, in one place.
 # The Kubernetes workloads live in ../app, a separate configuration.
 
 locals {

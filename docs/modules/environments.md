@@ -201,7 +201,7 @@ Smaller states mean faster plans, a smaller blast radius for each apply, and per
 | **Data sources** | `data "google_compute_subnetwork" "gke" { name = ... }` | verifies the subnet exists at plan time |
 | **`terraform_remote_state`** | reads the network state's outputs directly | couples the two states tightly, and needs read access to the whole network state |
 
-Part 5 uses the first two: the GPU node pool chapter finds the cluster with a data source.
+Part 6 uses the first two: the GPU node pool chapter finds the cluster with a data source.
 
 ## Workspaces: the other approach
 
@@ -309,7 +309,7 @@ cd envs/dev/network && terraform destroy
 cd ../../prod/network && terraform destroy
 ```
 
-That completes Part 4. Part 5 puts it all to work: a GKE cluster with GPUs, starting with [GKE Cluster](../ai-infra/gke-cluster.md).
+That completes Part 5. Part 6 puts it all to work: a GKE cluster with GPUs, starting with [GKE Cluster](../ai-infra/gke-cluster.md).
 
 ---
 

@@ -13,7 +13,7 @@ cd examples/modules/registry-modules
 terraform init
 ```
 
-The example builds the same network as [Networking](../gcp-foundations/networking.md) and [Writing Modules](writing-modules.md), this time with Google's `network` and `cloud-router` modules.
+The example builds the same network as [Networking](../gcp-services/networking.md) and [Writing Modules](writing-modules.md), this time with Google's `network` and `cloud-router` modules.
 
 ## Calling a registry module
 

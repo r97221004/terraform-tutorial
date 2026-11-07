@@ -4,7 +4,7 @@
 
 ---
 
-Most of this guide costs nothing or cents. Part 5 and the capstone run a GKE cluster and GPUs, which bill **by the hour, whether or not you're using them**. This page lists what each part costs, where the money goes, and the habits that keep a learning project from becoming a surprise bill.
+Most of this guide costs nothing or cents. Part 6 and the capstone run a GKE cluster and GPUs, which bill **by the hour, whether or not you're using them**. This page lists what each part costs, where the money goes, and the habits that keep a learning project from becoming a surprise bill.
 
 > 📌 **Prices are approximate**, for `us-central1`, in USD, as of when this guide was written. GPU and Spot prices change often. Always check the official pages: [GKE](https://cloud.google.com/kubernetes-engine/pricing), [VMs](https://cloud.google.com/compute/vm-instance-pricing), [GPUs](https://cloud.google.com/compute/gpus-pricing), [Spot VMs](https://cloud.google.com/spot-vms/pricing), [Cloud NAT](https://cloud.google.com/nat/pricing), [Cloud Storage](https://cloud.google.com/storage/pricing), [Artifact Registry](https://cloud.google.com/artifact-registry/pricing).
 
@@ -15,12 +15,12 @@ Most of this guide costs nothing or cents. Part 5 and the capstone run a GKE clu
 | Getting Started, Part 1 | local files and generated values on your own machine | $0: nothing runs in the cloud |
 | Part 2 | buckets with a few small objects, state files | effectively $0 (fractions of a cent per month) |
 | Part 3: APIs, IAM, secrets | API enablement, service accounts, IAM, secrets | $0; a handful of secret versions is within the free tier |
-| Part 3/4: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
-| Part 5: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
-| Part 5: GPU pool | `g2-standard-4` with an L4, Spot | **$0 at zero nodes; roughly $0.25–0.35 per hour per node** while a GPU Pod runs |
-| Part 5: model storage | ~3 GB in GCS, ~10 GB image in Artifact Registry | ~$1 per month |
-| Part 6 | GitHub Actions, WIF pool, service accounts | $0 on the GCP side |
-| Capstone | all of Part 5 | **~$0.25/hour idle, ~$0.50–1.00/hour while serving** |
+| Part 4/5: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
+| Part 6: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
+| Part 6: GPU pool | `g2-standard-4` with an L4, Spot | **$0 at zero nodes; roughly $0.25–0.35 per hour per node** while a GPU Pod runs |
+| Part 6: model storage | ~3 GB in GCS, ~10 GB image in Artifact Registry | ~$1 per month |
+| Part 7 | GitHub Actions, WIF pool, service accounts | $0 on the GCP side |
+| Capstone | all of Part 6 | **~$0.25/hour idle, ~$0.50–1.00/hour while serving** |
 
 ## Where the capstone's money goes
 
@@ -78,7 +78,7 @@ GKE gives **$74.40 of credit per billing account per month**, equal to the manag
 ## Habits that keep it near zero
 
 - **Create the budget alert first** ([Connecting to GCP](../state/google-provider.md#4-prep-create-a-budget-alert-now)), and remember it only warns.
-- **Destroy at the end of every session** that involved Part 5 or the capstone. Everything is in code, so rebuilding is just `terraform apply`.
+- **Destroy at the end of every session** that involved Part 6 or the capstone. Everything is in code, so rebuilding is just `terraform apply`.
 - **Scale GPU pools to zero** and use **Spot** for everything that can restart ([GPU Node Pools](../ai-infra/gpu-node-pools.md)).
 - **Cap GPU pools** with `total_max_node_count`, and keep GPU quota no higher than you need.
 - **Run [`leftovers.sh`](../../examples/capstone/cleanup/leftovers.sh)** after a cleanup, and look at **Billing → Reports** the next day.

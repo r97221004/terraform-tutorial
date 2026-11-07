@@ -436,4 +436,4 @@ Destroying a service account doesn't remove grants made to it elsewhere, by hand
 
 ---
 
-[← Projects & APIs](projects-and-apis.md) · [↑ Contents](../../README.md) · [Networking →](networking.md)
+[← Projects & APIs](projects-and-apis.md) · [↑ Contents](../../README.md) · [Secret Manager & Sensitive Values →](secrets.md)

@@ -283,7 +283,7 @@ The fix is what the message says: build keys from your **input** (variable names
 | N interchangeable copies, where only the number matters | `count` |
 | Anything you might later remove from the middle | `for_each` |
 
-`count` and `for_each` can't both be set on one resource. They also work on `module` blocks, which is how you'll stamp out one module per environment or region in [Part 4](../modules/writing-modules.md).
+`count` and `for_each` can't both be set on one resource. They also work on `module` blocks, which is how you'll stamp out one module per environment or region in [Part 5](../modules/writing-modules.md).
 
 ## `depends_on`
 
@@ -530,7 +530,7 @@ Why "last resort"? Everything else in Terraform is planned, diffed, and recorded
 | Instead of a provisioner that… | Use |
 |---|---|
 | installs software on a new VM | a startup script in the instance's metadata, or a VM image built with Packer ([server templating](../getting-started/what-is-terraform.md#three-kinds-of-iac-tool)) |
-| runs an app on a cluster | a container image and a Kubernetes deployment ([Part 5](../ai-infra/kubernetes-and-helm.md)) |
+| runs an app on a cluster | a container image and a Kubernetes deployment ([Part 6](../ai-infra/kubernetes-and-helm.md)) |
 | configures a long-lived server | a configuration management tool such as Ansible |
 | calls an API Terraform has no resource for | look for a provider or resource first; the Registry is large |
 

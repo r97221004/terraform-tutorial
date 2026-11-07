@@ -162,7 +162,7 @@ module "vllm" {
 }
 ```
 
-Like every reusable module ([Writing Modules](../modules/writing-modules.md#the-modules-files)), it has no `provider` blocks: it uses the `kubernetes` and `helm` providers configured in the root's `providers.tf` above. Its variables default to the names used throughout Part 5: namespace `ml-serving`, KSA `vllm`, and the Open WebUI chart enabled.
+Like every reusable module ([Writing Modules](../modules/writing-modules.md#the-modules-files)), it has no `provider` blocks: it uses the `kubernetes` and `helm` providers configured in the root's `providers.tf` above. Its variables default to the names used throughout Part 6: namespace `ml-serving`, KSA `vllm`, and the Open WebUI chart enabled.
 
 ## vLLM with the kubernetes provider
 
@@ -396,7 +396,7 @@ cd ../gpu-node-pools && terraform destroy
 cd ../gke-cluster && terraform destroy
 ```
 
-Destroying the workloads first lets the GPU node scale back to zero and Kubernetes clean up what it created. That completes Part 5. The [capstone](../capstone/llm-platform.md) builds this whole platform again from one place.
+Destroying the workloads first lets the GPU node scale back to zero and Kubernetes clean up what it created. That completes Part 6. The [capstone](../capstone/llm-platform.md) builds this whole platform again from one place.
 
 ---
 

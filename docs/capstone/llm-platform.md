@@ -17,7 +17,7 @@ You need:
 - **The state bucket** from [Remote Backend](../state/remote-backend.md) (`$TF_VAR_project_id-tfstate`).
 - **GPU quota**: at least 1 for `PREEMPTIBLE_NVIDIA_L4_GPUS` in your region and for `GPUS_ALL_REGIONS` ([GPU Node Pools](../ai-infra/gpu-node-pools.md#gpu-quota-first)).
 - **`kubectl`** and the GKE auth plugin ([GKE Cluster](../ai-infra/gke-cluster.md#apply-it)).
-- **Nothing left over from Part 5**: the capstone uses the same names (`ml-vpc`, `ml-gke`, `gke-nodes`, `…-models`). If you still have Part 5 applied, destroy it first, in reverse order.
+- **Nothing left over from Part 6**: the capstone uses the same names (`ml-vpc`, `ml-gke`, `gke-nodes`, `…-models`). If you still have Part 6 applied, destroy it first, in reverse order.
 
 ## Two configurations, two states
 
@@ -73,17 +73,17 @@ The split is the answer to the [two-stage apply problem](../ai-infra/kubernetes-
 
 ## What's in `infra/` and `app/`
 
-The capstone writes almost no resources of its own. [`infra/main.tf`](../../examples/capstone/llm-platform/infra/main.tf) and [`app/main.tf`](../../examples/capstone/llm-platform/app/main.tf) call the **same modules** the Part 4 and Part 5 chapters use, so a fix in a module reaches the chapter example and the capstone at once:
+The capstone writes almost no resources of its own. [`infra/main.tf`](../../examples/capstone/llm-platform/infra/main.tf) and [`app/main.tf`](../../examples/capstone/llm-platform/app/main.tf) call the **same modules** the Part 5 and Part 6 chapters use, so a fix in a module reaches the chapter example and the capstone at once:
 
 | Module | Builds | Explained in |
 |---|---|---|
-| [`modules/writing-modules/modules/vpc`](../../examples/modules/writing-modules/modules/vpc/) | network, subnet with `pods`/`services` ranges, Cloud NAT, firewall | [Networking](../gcp-foundations/networking.md), [Writing Modules](../modules/writing-modules.md) |
+| [`modules/writing-modules/modules/vpc`](../../examples/modules/writing-modules/modules/vpc/) | network, subnet with `pods`/`services` ranges, Cloud NAT, firewall | [Networking](../gcp-services/networking.md), [Writing Modules](../modules/writing-modules.md) |
 | [`ai-infra/modules/gke-cluster`](../../examples/ai-infra/modules/gke-cluster/) | node SA; zonal cluster with private nodes, DNS endpoint, Workload Identity, GCS FUSE; system pool | [GKE Cluster](../ai-infra/gke-cluster.md) |
 | [`ai-infra/modules/gpu-node-pool`](../../examples/ai-infra/modules/gpu-node-pool/) | L4 Spot pool scaling 0–1 across three zones | [GPU Node Pools](../ai-infra/gpu-node-pools.md) |
 | [`ai-infra/modules/model-storage`](../../examples/ai-infra/modules/model-storage/) | models bucket readable only by the `ml-serving/vllm` KSA; `serving` and `dockerhub` repositories readable by the nodes | [Model Storage](../ai-infra/model-storage.md), [Workload Identity](../ai-infra/workload-identity.md) |
 | [`ai-infra/modules/vllm`](../../examples/ai-infra/modules/vllm/) (in `app/`) | namespace, KSA, vLLM Deployment and Service, optional Open WebUI | [Kubernetes & Helm](../ai-infra/kubernetes-and-helm.md) |
 
-Two things differ from the Part 5 chapters, both because the infrastructure now lives in one configuration:
+Two things differ from the Part 6 chapters, both because the infrastructure now lives in one configuration:
 
 - The GPU pool module gets the cluster from the `gke` module's output, `module.gke.cluster_id`, instead of a data source lookup. Within one configuration, a reference is better: it also orders the pool after the cluster.
 - The project number for the Workload Identity principal is read with `data "google_project"`, **without** `depends_on`, so it's read at plan time and the plan shows the real principal:
@@ -209,7 +209,7 @@ Look back at what's running, and where each part came from:
 | Layer | Resource | Chapter |
 |---|---|---|
 | State | GCS backend, locked, versioned | [Remote Backend](../state/remote-backend.md) |
-| Network | custom VPC, secondary ranges, Cloud NAT, IAP-only SSH | [Networking](../gcp-foundations/networking.md) |
+| Network | custom VPC, secondary ranges, Cloud NAT, IAP-only SSH | [Networking](../gcp-services/networking.md) |
 | Identity | node SA with one role; KSA principal with one grant; no keys anywhere | [IAM](../gcp-foundations/iam.md), [Workload Identity](../ai-infra/workload-identity.md) |
 | Compute | private zonal cluster, DNS endpoint, L4 Spot pool scaling to zero | [GKE Cluster](../ai-infra/gke-cluster.md), [GPU Node Pools](../ai-infra/gpu-node-pools.md) |
 | Data | regional weights bucket, image cache | [Model Storage](../ai-infra/model-storage.md) |

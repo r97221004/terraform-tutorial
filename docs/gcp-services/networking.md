@@ -4,12 +4,12 @@
 
 ---
 
-The GKE cluster in Part 5 needs a network: IP addresses for its nodes, Pods, and Services, a way to download model weights from the internet without being reachable from it, and firewall rules that let in only what's needed. This chapter builds that network as a standalone configuration, the same one the [capstone](../capstone/llm-platform.md) uses.
+The GKE cluster in Part 6 needs a network: IP addresses for its nodes, Pods, and Services, a way to download model weights from the internet without being reachable from it, and firewall rules that let in only what's needed. This chapter builds that network as a standalone configuration, the same one the [capstone](../capstone/llm-platform.md) uses.
 
 ## Before you start
 
 ```bash
-cd examples/gcp-foundations/networking
+cd examples/gcp-services/networking
 terraform init
 ```
 
@@ -72,7 +72,7 @@ resource "google_compute_network" "vpc" {
 
 **`auto_create_subnetworks = false`** is the important line. An **auto-mode** VPC (and the project's `default` network, which is one) gets a subnet in every region with predefined ranges, `10.128.0.0/9`. You don't choose them, they're the same in every project (so they collide the moment you connect two projects), and they waste address space you'll want for Pods. A **custom-mode** VPC has only the subnets you create.
 
-If your project has a `default` network, it also came with firewall rules that allow SSH and RDP from **anywhere** (`0.0.0.0/0`). Don't use it. [Projects & APIs](projects-and-apis.md#should-terraform-create-the-project) showed `auto_create_network = false` for projects Terraform creates; for your sandbox, you can delete it with `gcloud compute networks delete default` once nothing uses it.
+If your project has a `default` network, it also came with firewall rules that allow SSH and RDP from **anywhere** (`0.0.0.0/0`). Don't use it. [Projects & APIs](../gcp-foundations/projects-and-apis.md#should-terraform-create-the-project) showed `auto_create_network = false` for projects Terraform creates; for your sandbox, you can delete it with `gcloud compute networks delete default` once nothing uses it.
 
 `routing_mode = "REGIONAL"` means Cloud Routers only advertise routes in their own region. That's the default and right for a single-region platform; `GLOBAL` matters for VPNs and multi-region hybrid setups.
 
@@ -88,7 +88,7 @@ A VPC-native GKE cluster uses **three** ranges, all from your subnet:
 
 The Pod range is the one people make too small: a `/24` per node means a `/20` Pod range runs out at **16 nodes**, and you can't grow it in place. Size it for the largest cluster you might ever run.
 
-Ranges must not overlap anything else in the VPC, **or in any network you'll connect to later** (another VPC through peering, an on-premises network through VPN). Pick them once, write them down, and compute them instead of typing them. From [`main.tf`](../../examples/gcp-foundations/networking/main.tf):
+Ranges must not overlap anything else in the VPC, **or in any network you'll connect to later** (another VPC through peering, an on-premises network through VPN). Pick them once, write them down, and compute them instead of typing them. From [`main.tf`](../../examples/gcp-services/networking/main.tf):
 
 ```hcl
 locals {
@@ -322,8 +322,8 @@ gcloud compute firewall-rules list --filter="network:ml-vpc"
 terraform destroy
 ```
 
-Without VMs this costs next to nothing, but destroy it anyway: the Part 5 chapters create the network they need themselves, with the same names.
+Without VMs this costs next to nothing, but destroy it anyway: the Part 6 chapters create the network they need themselves, with the same names.
 
 ---
 
-[← IAM & Service Accounts](iam.md) · [↑ Contents](../../README.md) · [Secret Manager & Sensitive Values →](secrets.md)
+[← Secret Manager & Sensitive Values](../gcp-foundations/secrets.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)

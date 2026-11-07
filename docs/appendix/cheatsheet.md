@@ -187,7 +187,7 @@ removed {
 | `google_project_service` with `for_each` and `disable_on_destroy = false` | [Projects & APIs](../gcp-foundations/projects-and-apis.md) |
 | `_iam_member` (never `_iam_policy`) at the narrowest scope | [IAM](../gcp-foundations/iam.md) |
 | One service account per workload; `.member` for principals | [IAM](../gcp-foundations/iam.md) |
-| Custom VPC, `/14` Pod range, Private Google Access, Cloud NAT | [Networking](../gcp-foundations/networking.md) |
+| Custom VPC, `/14` Pod range, Private Google Access, Cloud NAT | [Networking](../gcp-services/networking.md) |
 | Secret container in Terraform, value via `gcloud` or `*_wo` | [Secret Manager](../gcp-foundations/secrets.md) |
 | State in GCS: versioned, `prevent_destroy`, one prefix per root | [Remote Backend](../state/remote-backend.md) |
 | Separate node pools, private nodes, DNS endpoint | [GKE Cluster](../ai-infra/gke-cluster.md) |

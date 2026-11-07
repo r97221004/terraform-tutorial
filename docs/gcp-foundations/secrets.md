@@ -269,7 +269,7 @@ gcloud secrets versions list hf-token
 gcloud secrets get-iam-policy hf-token
 ```
 
-The download job, running as `model-downloader`, reads `projects/PROJECT/secrets/hf-token/versions/latest`. In Part 5, a Kubernetes service account is mapped to it through [Workload Identity](../ai-infra/workload-identity.md), so the vLLM pod reads the token without any key or Kubernetes Secret.
+The download job, running as `model-downloader`, reads `projects/PROJECT/secrets/hf-token/versions/latest`. In Part 6, a Kubernetes service account is mapped to it through [Workload Identity](../ai-infra/workload-identity.md), so the vLLM pod reads the token without any key or Kubernetes Secret.
 
 ## Checkpoint
 
@@ -302,8 +302,8 @@ The download job, running as `model-downloader`, reads `projects/PROJECT/secrets
 terraform destroy
 ```
 
-Destroying the secret destroys all of its versions. That completes Part 3: APIs, IAM, networking, and secrets. Part 4 turns these pieces into reusable code, starting with [Writing Modules](../modules/writing-modules.md).
+Destroying the secret destroys all of its versions. That completes Part 3: APIs, IAM, and secrets. Part 4 builds GCP services on top of them, starting with the network almost every one of them needs: [Networking](../gcp-services/networking.md).
 
 ---
 
-[← Networking](networking.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)
+[← IAM & Service Accounts](iam.md) · [↑ Contents](../../README.md) · [Networking →](../gcp-services/networking.md)

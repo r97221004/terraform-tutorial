@@ -4,7 +4,7 @@
 
 ---
 
-Part 3 builds the GCP foundations the AI platform in Part 5 stands on: APIs, IAM, networking, and secrets. Every one of them lives in a **project**, and nothing works until the right **APIs** are enabled in it. This chapter covers both, plus the two settings that quietly affect every resource you create: **which project** it lands in, and **how it's labeled**.
+Part 3 builds the GCP foundations the AI platform in Part 6 stands on: APIs, IAM, and secrets. Every one of them lives in a **project**, and nothing works until the right **APIs** are enabled in it. This chapter covers both, plus the two settings that quietly affect every resource you create: **which project** it lands in, and **how it's labeled**.
 
 ## Before you start
 
