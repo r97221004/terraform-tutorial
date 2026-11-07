@@ -161,8 +161,8 @@ You asked to delete one file. Terraform deletes **two**, including `speech.txt`,
 
 `for_each` makes one instance per element of a **map** or a **set of strings**, and identifies each one by its **key**. Inside the block:
 
-- `each.key` is the map key (or the set element).
-- `each.value` is the map value (for a set, the same as `each.key`).
+- `each.key` is the map key.
+- `each.value` is the map value, or the element itself for a set. For a set, `each.key` holds the same string, but this guide writes `each.value` for set elements, so `each.key` always means a map key.
 
 ### Over a map
 
@@ -211,12 +211,12 @@ variable "models" {
   default     = ["llama-3-1-8b", "qwen2-5-7b"]
 }
 
-# for_each over a set of strings: each.key and each.value are the same string.
+# for_each over a set of strings: each.value is the element (each.key is the same string).
 resource "local_file" "model_card" {
   for_each = var.models
 
-  filename = "${path.module}/out/model-cards/${each.key}.md"
-  content  = "# ${each.key}\n\nEvaluation results go here.\n"
+  filename = "${path.module}/out/model-cards/${each.value}.md"
+  content  = "# ${each.value}\n\nEvaluation results go here.\n"
   ...
 }
 ```

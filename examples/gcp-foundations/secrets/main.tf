@@ -1,7 +1,7 @@
 resource "google_project_service" "enabled" {
   for_each = toset(["iam.googleapis.com", "secretmanager.googleapis.com"])
 
-  service            = each.key
+  service            = each.value
   disable_on_destroy = false
 }
 

@@ -15,7 +15,7 @@ resource "google_project_service" "enabled" {
     "storage.googleapis.com",
   ])
 
-  service            = each.key
+  service            = each.value
   disable_on_destroy = false
 }
 

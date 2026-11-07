@@ -1,7 +1,7 @@
 resource "google_project_service" "enabled" {
   for_each = toset(["storage.googleapis.com", "artifactregistry.googleapis.com"])
 
-  service            = each.key
+  service            = each.value
   disable_on_destroy = false
 }
 

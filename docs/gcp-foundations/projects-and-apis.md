@@ -124,7 +124,7 @@ locals {
 resource "google_project_service" "enabled" {
   for_each = local.services
 
-  service = each.key
+  service = each.value
 
   # Leave the API enabled when this resource is destroyed. Other
   # configurations (and people) in the project may depend on it.

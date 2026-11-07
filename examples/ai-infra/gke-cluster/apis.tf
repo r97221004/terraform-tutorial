@@ -5,6 +5,6 @@ resource "google_project_service" "enabled" {
     "iam.googleapis.com",
   ])
 
-  service            = each.key
+  service            = each.value
   disable_on_destroy = false
 }

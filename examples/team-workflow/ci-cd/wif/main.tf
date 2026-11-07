@@ -5,7 +5,7 @@ resource "google_project_service" "enabled" {
     "sts.googleapis.com",
   ])
 
-  service            = each.key
+  service            = each.value
   disable_on_destroy = false
 }
 
@@ -130,7 +130,7 @@ resource "google_project_iam_member" "apply_editor" {
   ])
 
   project = var.project_id
-  role    = each.key
+  role    = each.value
   member  = google_service_account.apply.member
 }
 

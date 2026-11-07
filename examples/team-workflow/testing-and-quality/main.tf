@@ -29,7 +29,7 @@ resource "google_storage_bucket_iam_member" "readers" {
 
   bucket = google_storage_bucket.models.name
   role   = "roles/storage.objectViewer"
-  member = each.key
+  member = each.value
 }
 
 # A check block: reported as a warning on every plan and apply, without

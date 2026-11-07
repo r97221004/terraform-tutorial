@@ -97,5 +97,5 @@ resource "google_storage_bucket_iam_member" "readers" {
 
   bucket = google_storage_bucket.data.name
   role   = "roles/storage.objectViewer"
-  member = each.key
+  member = each.value
 }

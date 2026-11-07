@@ -42,12 +42,12 @@ resource "local_file" "scratch" {
   directory_permission = "0755"
 }
 
-# for_each over a set of strings: each.key and each.value are the same string.
+# for_each over a set of strings: each.value is the element (each.key is the same string).
 resource "local_file" "model_card" {
   for_each = var.models
 
-  filename             = "${path.module}/out/model-cards/${each.key}.md"
-  content              = "# ${each.key}\n\nEvaluation results go here.\n"
+  filename             = "${path.module}/out/model-cards/${each.value}.md"
+  content              = "# ${each.value}\n\nEvaluation results go here.\n"
   file_permission      = "0644"
   directory_permission = "0755"
 }
