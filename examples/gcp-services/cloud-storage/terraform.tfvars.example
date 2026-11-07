@@ -1,0 +1,11 @@
+# Copy to terraform.tfvars (git-ignored) and edit:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# Replace these with principals that exist: IAM rejects a grant to an
+# account it can't find, so apply fails with these placeholders.
+
+readers = [
+  "user:alice@example.com",
+  "user:bob@example.com",
+  "serviceAccount:my-sa@my-project.iam.gserviceaccount.com",
+]

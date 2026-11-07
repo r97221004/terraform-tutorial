@@ -331,11 +331,21 @@ terraform plan    # Plan: 3 to add, 0 to change, 0 to destroy.
 terraform apply
 ```
 
-Three resources: the bucket and two objects. The `readers` grant adds one more per principal if you set it, for example:
+Three resources: the bucket and two objects. The `readers` grant adds one more per principal if you set it. This step is optional: skip it if you don't have another account to grant access to. For a list like this, a variable file is easier than `-var`. Copy [`terraform.tfvars.example`](../../examples/gcp-services/cloud-storage/terraform.tfvars.example) and put real principals in it:
 
 ```bash
-terraform apply -var='readers=["user:teammate@example.com"]'
+cp terraform.tfvars.example terraform.tfvars
 ```
+
+```hcl
+readers = [
+  "user:alice@example.com",
+  "user:bob@example.com",
+  "serviceAccount:my-sa@my-project.iam.gserviceaccount.com",
+]
+```
+
+`terraform.tfvars` is git-ignored, since it holds addresses specific to you ([Variables, Locals & Outputs](../core-language/variables-and-outputs.md)). Terraform loads it automatically, so the next plan adds one `google_storage_bucket_iam_member.readers["…"]` per entry. The placeholders above don't exist, and IAM rejects a grant to an account it can't find, so `apply` fails until you replace them. If you copied the file but have no real principals to put in it, `rm terraform.tfvars` before going on: otherwise every later plan in this chapter also tries to add those grants.
 
 The outputs give you everything the next section needs:
 
@@ -475,7 +485,7 @@ The plan shows `google_storage_bucket_object.pipeline_config` must be replaced: 
 
 ```bash
 terraform destroy
-rm -rf raw
+rm -rf raw terraform.tfvars
 ```
 
 `force_destroy = true` lets Terraform delete the bucket along with the CSVs you uploaded and every noncurrent version. The deleted objects sit in soft delete for 7 days, which for a few KB costs nothing.
