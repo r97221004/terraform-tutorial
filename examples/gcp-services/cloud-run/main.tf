@@ -27,6 +27,9 @@ resource "google_cloud_run_v2_service" "hello" {
 
   # Everything in template is a revision: changing any of it creates a new one.
   template {
+    # null: Cloud Run names each revision. A name lets traffic point at it,
+    # and can't be reused for a different template.
+    revision        = var.revision
     service_account = google_service_account.hello.email
 
     scaling {
@@ -51,6 +54,19 @@ resource "google_cloud_run_v2_service" "hello" {
         # billing: CPU only while a request is being handled.
         cpu_idle = true
       }
+    }
+  }
+
+  # One traffic block per revision in var.traffic. With none (the default),
+  # all traffic goes to the latest revision the moment it's ready.
+  dynamic "traffic" {
+    for_each = var.traffic
+
+    content {
+      type     = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
+      revision = traffic.key
+      percent  = traffic.value
+      tag      = trimprefix(traffic.key, "hello-") # https://v2---hello-….run.app
     }
   }
 }

@@ -61,7 +61,7 @@ flowchart LR
 |---|---|
 | **Service** | the long-lived thing with a name, a region, and a stable HTTPS URL |
 | **Revision** | an immutable snapshot of the service's configuration: image, environment variables, limits, service account. **Any** change to them creates a new revision |
-| **Traffic** | which revisions get requests. By default, 100% goes to the latest revision that's ready |
+| **Traffic** | which revisions get requests, and what share. By default, 100% goes to the latest revision that's ready; `traffic` blocks split it by revision name |
 | **Instance** | one running copy of a revision's container. Cloud Run starts and stops instances to match the load |
 | **Invoker** | who may call the service: `roles/run.invoker` in IAM. Without it, requests get `403 Forbidden` |
 | **Service account** | the identity the container uses to call Google APIs, as on a [VM](compute-engine.md#identity-a-service-account-of-its-own) |
@@ -175,6 +175,9 @@ resource "google_cloud_run_v2_service" "hello" {
 ```hcl
   # Everything in template is a revision: changing any of it creates a new one.
   template {
+    # null: Cloud Run names each revision. A name lets traffic point at it,
+    # and can't be reused for a different template.
+    revision        = var.revision
     service_account = google_service_account.hello.email
 
     scaling {
@@ -207,7 +210,7 @@ config:
 flowchart LR
     tmpl["📝 inside template<br/>image · env · scaling<br/>resources · service_account"]
     outer["⚙️ outside template<br/>ingress · traffic<br/>deletion_protection"]
-    newrev["📦 a new revision<br/>hello-0000N,<br/>then traffic moves to it"]
+    newrev["📦 a new revision,<br/>hello-0000N-…<br/>or the name you set"]
     same["☁️ the same revisions,<br/>the service's settings updated"]
 
     tmpl ==>|"change any of it,<br/>terraform apply"| newrev
@@ -222,7 +225,8 @@ flowchart LR
     class same tgt
 ```
 
-- **`template` is the revision.** Everything inside it, from the image to a single environment variable, is copied into an immutable revision. Change any of it and the next `apply` creates a new revision and moves traffic to it. Settings outside `template`, like `ingress`, change the service without a new revision.
+- **`template` is the revision.** Everything inside it, from the image to a single environment variable, is copied into an immutable revision. Change any of it and the next `apply` creates a new revision and, unless `traffic` blocks say otherwise, moves traffic to it. Settings outside `template`, like `ingress` and `traffic`, change the service without a new revision.
+- **`revision = var.revision`** is `null` by default, so Cloud Run names each revision itself, like `hello-00001-abc`. You'll set it in [Control the rollout](#control-the-rollout), where traffic has to point at revisions by name.
 - **`service_account`** is `hello-run`, created in the same file with no roles: the sample calls no Google APIs. A service that reads a bucket gets `roles/storage.objectViewer` on that bucket, exactly as in [Cloud Storage](cloud-storage.md#access-iam-only-never-public).
 - **`max_instance_count = 2`** keeps a runaway client from scaling the bill. Real services set it from what they and their downstream systems can handle.
 - **`env`** passes `MESSAGE` from a variable, so you can create a new revision with nothing but `-var`, which you'll do below. The sample app doesn't display it; a real app would read it like any environment variable. For a secret, use `value_source { secret_key_ref { secret, version } }` instead of `value`, and grant the service account `roles/secretmanager.secretAccessor` on that secret, as in [Secret Manager](../gcp-foundations/secrets.md).
@@ -400,9 +404,144 @@ The list has both revisions; the page now names `hello-00002-…`. The old revis
 
 Compare that with the [VM](compute-engine.md#changing-a-running-vm): there, a change either stopped the VM or replaced it. Here every change is a new revision behind the same URL, with no downtime.
 
-The `traffic` block can split requests between revisions, such as 90% to the old one and 10% to the new one, for a gradual rollout. This chapter keeps the default, 100% to the latest.
+Switching 100% at once is fine for a lab. For anything users depend on, you'll want to try the new revision first and move traffic in steps, which is the next section.
 
-Then watch scale to zero: leave the service alone for 15 minutes or so, and time the next request. The first one is slower, a cold start; the ones after it are fast again:
+## Control the rollout
+
+So far every new revision took 100% of the traffic as soon as it was ready. To send it a little traffic first, and roll back without rebuilding anything, two variables that you've left at their defaults come into play: `revision` names the revision, and `traffic` says what share each named revision gets. The example turns `traffic` into one block per revision:
+
+```hcl
+  # One traffic block per revision in var.traffic. With none (the default),
+  # all traffic goes to the latest revision the moment it's ready.
+  dynamic "traffic" {
+    for_each = var.traffic
+
+    content {
+      type     = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
+      revision = traffic.key
+      percent  = traffic.value
+      tag      = trimprefix(traffic.key, "hello-") # https://v2---hello-….run.app
+    }
+  }
+```
+
+- **One block per revision that gets traffic**, generated with a [`dynamic` block](../core-language/expressions.md#dynamic-blocks). With `traffic` empty, there are no blocks, which is the default behavior you've used so far. The percents must add up to 100, and the variable's validation checks that before Cloud Run does.
+- **`TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION`** points at a revision by name, so revisions need names you choose: an automatic one like `hello-00002-xyz` isn't known until after `apply`. The other type, `…_LATEST`, means "whatever revision is newest", so a second template change would quietly move that share to a revision you never tested.
+- **`tag`** gives each listed revision a URL of its own, `https://v2---hello-….run.app`, that reaches it whatever its percent, even 0. That's how you test a new revision before any user sees it.
+- **A revision name can't be reused.** Once you set `revision`, every template change needs a new name, or `apply` fails.
+
+The rollout goes in steps, each one an edit to `terraform.tfvars` and an `apply`:
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    s0["0️⃣ name the running version<br/>hello-v1 100%"]
+    s1["1️⃣ deploy v2<br/>v1 100% · v2 0%<br/>test at the v2 tag URL"]
+    s2["2️⃣ canary<br/>v1 90% · v2 10%<br/>watch errors, latency"]
+    s3["3️⃣ promote<br/>v2 100%"]
+    back["↩️ roll back<br/>v1 100% · v2 0%"]
+
+    s0 ==> s1 ==> s2 ==> s3
+    s2 -.->|"v2 misbehaves"| back
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class s0,s1 ctrl
+    class s2 eng
+    class s3 tgt
+    class back bad
+```
+
+### Step 0: name the running version
+
+Copy the example variable file:
+
+```bash
+cp terraform.tfvars.example terraform.tfvars
+```
+
+It names the revision `hello-v1` and gives it all the traffic:
+
+```hcl
+revision = "hello-v1"
+traffic = {
+  "hello-v1" = 100
+}
+```
+
+```bash
+terraform apply
+```
+
+Setting a name changes the template, so Cloud Run creates a new revision, `hello-v1`, and the traffic block sends it everything. If you ran `-var='message=Hello again'` above, the message also goes back to the default here: `-var` values aren't remembered between runs, which is one reason this section keeps them in a file.
+
+### Step 1: deploy v2 with no traffic
+
+In `terraform.tfvars`, name a new revision, change what's in it, and give it 0%:
+
+```hcl
+revision = "hello-v2"
+message  = "Hello again"
+traffic  = { "hello-v1" = 100, "hello-v2" = 0 }
+```
+
+```bash
+terraform apply
+```
+
+The plan shows `~ update in-place` on `google_cloud_run_v2_service.hello`: the template's `revision` and `env` change, and a second traffic block appears. Cloud Run builds `hello-v2`, waits until it's ready, and sends it nothing. If it never becomes ready, say from a typo in the image name, `apply` fails and `hello-v1` keeps serving.
+
+```bash
+terraform output traffic                                    # hello-v1 = 100, hello-v2 = 0
+curl "$(terraform output -raw url)"                         # still v1
+curl "$(terraform output -json tag_urls | jq -r .v2)"      # v2, before any user sees it (needs jq)
+```
+
+### Step 2: send it 10%
+
+Change only the traffic, and apply:
+
+```hcl
+traffic = { "hello-v1" = 90, "hello-v2" = 10 }
+```
+
+This time the plan changes only the two `percent` values, and no new revision is created: `revision` and `message` didn't change. About one request in ten now goes to `hello-v2`. In a real rollout, this is where you watch its error rate and latency in **Cloud Run → hello → Metrics** before going on.
+
+### Step 3: promote, or roll back
+
+If v2 behaves, give it everything:
+
+```hcl
+traffic = { "hello-v2" = 100 }
+```
+
+`hello-v1` isn't deleted: it stays, gets nothing, and costs nothing. If v2 misbehaves at any step, roll back the same way, with no rebuild:
+
+```hcl
+traffic = { "hello-v1" = 100, "hello-v2" = 0 }
+```
+
+The rollback takes effect as soon as `apply` finishes, because `hello-v1` is still there, ready. `gcloud run revisions list --service=hello --region="$TF_VAR_region"` shows every revision you've created, named and unnamed.
+
+### Who should own traffic
+
+Driving traffic from `terraform.tfvars` works well when releases are occasional and you want each step in a plan and in Git. Teams that deploy many times a day usually split the job: Terraform owns the service's settings, such as the service account, limits, and IAM, while CI deploys each image with `gcloud run deploy --no-traffic --tag=…` and moves traffic with `gcloud run services update-traffic`. The Terraform configuration then needs `lifecycle { ignore_changes = [...] }` on the image and traffic, or the next `apply` would undo what CI did. For automated canaries with approvals between steps, **Cloud Deploy** has a Cloud Run canary strategy built in.
+
+## Watch scale to zero
+
+Leave the service alone for 15 minutes or so, and time the next request. The first one is slower, a cold start; the ones after it are fast again:
 
 ```bash
 curl -s -o /dev/null -w '%{time_total}s\n' "$(terraform output -raw url)"
@@ -413,7 +552,8 @@ curl -s -o /dev/null -w '%{time_total}s\n' "$(terraform output -raw url)"
 1. You add a `resources` block to set `memory = "1Gi"` and nothing else in it. What else changed, and how would you notice?
 2. `curl` on the service URL returns `403 Forbidden`, but `curl` with `gcloud auth print-identity-token` works. What's missing?
 3. `terraform destroy` fails on a `google_cloud_run_v2_service`, saying it can't be destroyed. What's going on, and what's the fix?
-4. You change only `max_instance_count`. Is that a new revision?
+4. You change only `max_instance_count`. Is that a new revision? What if you've set `revision`, as in the rollout?
+5. `hello-v2` is at 10% and its error rate jumps. What's the fastest way back, and why is it fast?
 
 <details>
 <summary>Answer</summary>
@@ -421,7 +561,8 @@ curl -s -o /dev/null -w '%{time_total}s\n' "$(terraform output -raw url)"
 1. `cpu_idle` stopped defaulting to `true`, so the service moved to CPU that's always allocated, billed for as long as instances exist. Nothing errors; the bill grows. Set `cpu_idle = true` in the same block.
 2. An invoker grant for unauthenticated callers. Your own token works because your account has the invoker permission through its project role. Grant `roles/run.invoker` to `allUsers` on the service for a public service, or to the calling service's account for a private one.
 3. `deletion_protection` is `true`, the provider's default. Set it to `false`, run `terraform apply` so state records it, then destroy. Leave it `true` on services that matter.
-4. Yes. `scaling` is inside `template`, and every change inside `template` creates a new revision. Settings outside it, like `ingress`, don't.
+4. Yes. `scaling` is inside `template`, and every change inside `template` creates a new revision. Settings outside it, like `ingress` or `traffic`, don't. With `revision` set, you must also give it a new name: the old name already belongs to a different template, so `apply` fails otherwise.
+5. Set `traffic` back to `hello-v1 = 100` and `hello-v2 = 0`, and apply. Nothing is rebuilt: `hello-v1` still exists and is ready, so only the traffic setting changes.
 
 </details>
 
@@ -432,6 +573,7 @@ curl -s -o /dev/null -w '%{time_total}s\n' "$(terraform output -raw url)"
 - **Write `cpu_idle = true` whenever you write a `resources` block**, unless you've chosen instance-based billing on purpose.
 - **Grant `roles/run.invoker` on the service**, to `allUsers` only for truly public services, and to service accounts for service-to-service calls.
 - **Keep `deletion_protection` on** outside labs.
+- **Name revisions and route traffic by name** for anything users depend on: deploy at 0% with a tag, test, then shift in steps. Leave a team's frequent deploys to CI, with `ignore_changes` on what CI owns.
 - **Deploy images by tag in development and by digest in production**, so a revision always serves exactly the image you tested.
 - **Pass secrets with `value_source`**, never as plain `env` values, which end up in state and in the Console.
 
@@ -439,6 +581,7 @@ curl -s -o /dev/null -w '%{time_total}s\n' "$(terraform output -raw url)"
 
 ```bash
 terraform destroy
+rm -f terraform.tfvars
 ```
 
 `deletion_protection = false` lets this delete the service, every revision, the service account, and the public grant. The APIs stay enabled, which costs nothing. An idle Cloud Run service costs nothing either, but destroying it removes the public URL.
