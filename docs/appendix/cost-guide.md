@@ -17,6 +17,7 @@ Most of this guide costs nothing or cents. Part 6 and the capstone run a GKE clu
 | Part 3: APIs, IAM, secrets | API enablement, service accounts, IAM, secrets | $0; a handful of secret versions is within the free tier |
 | Part 4: Cloud Storage | a bucket with a few KB of objects and their old versions | effectively $0 |
 | Part 4: Compute Engine | one `e2-micro` VM, two 10 GB standard disks, an ephemeral external IP | $0 for the VM and disk on the free tier; the external IP ~$0.005/hour while the VM runs |
+| Part 4: Cloud Run | one service, scaled to zero when idle | $0: well inside the free tier's monthly requests and compute |
 | Part 4/5: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
 | Part 6: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
 | Part 6: GPU pool | `g2-standard-4` with an L4, Spot | **$0 at zero nodes; roughly $0.25–0.35 per hour per node** while a GPU Pod runs |
