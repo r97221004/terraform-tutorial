@@ -271,6 +271,41 @@ The other two rules handle the noncurrent versions that versioning keeps:
 - **`num_newer_versions = 3`** deletes a version once three newer ones exist. `with_state = "ARCHIVED"` (GCS's name for noncurrent) makes sure the rule never touches live objects.
 - **`days_since_noncurrent_time = 30`** deletes a version 30 days after it was replaced, however few versions there are.
 
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    live["📄 live version<br/>what cat and cp read"]
+    non["🗂️ noncurrent version<br/>name#generation,<br/>still billed"]
+    soft["🗑️ soft-deleted<br/>restorable for 7 days,<br/>still billed"]
+    gone(["permanently gone"])
+
+    live ==>|"overwrite, rm,<br/>or the age-365 rule"| non
+    non -.->|"cp name#generation<br/>over the live one"| live
+    non ==>|"3 newer versions, or<br/>30 days noncurrent,<br/>or rm name#generation"| soft
+    soft ==>|"after 7 days"| gone
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class live tgt
+    class non eng
+    class soft ctrl
+    class gone bad
+```
+
+Every version of an object moves left to right through these states. In a versioned bucket, nothing removes data in one step: even the `age = 365` rule only turns the live version noncurrent, and the noncurrent rules delete it later. The chain is long on purpose, and each state is billed, which is why the noncurrent rules matter.
+
 When several rules match one object, `Delete` wins over `SetStorageClass`, and between two `SetStorageClass` actions the cheaper class wins.
 
 > 💡 **Autoclass is the alternative.** If you don't know how often data will be read, `autoclass { enabled = true }` lets GCS move each object between classes based on its actual access, with no retrieval or early-deletion charges, for a small per-object management fee. It can't be combined with `SetStorageClass` rules: pick Autoclass or a schedule, per bucket. A schedule like the one above is better when you know the pattern, as with logs and exports.

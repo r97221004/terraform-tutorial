@@ -212,7 +212,44 @@ resource "google_service_account" "web" {
   }
 ```
 
-Programs on the VM call Google APIs as this service account, with no key file: they get tokens from the VM's metadata server. Two settings decide what they can do:
+Programs on the VM call Google APIs as this service account, with no key file: they get tokens from the VM's metadata server.
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    subgraph vm["🖥️ VM web-1"]
+        app["a program on the VM<br/>e.g. gcloud, a client library"]
+    end
+    md["🔑 metadata server<br/>metadata.google.internal"]
+    api(["☁️ a Google API<br/>e.g. Cloud Storage"])
+    iam["🛡️ IAM<br/>roles granted to<br/>web-server@…"]
+
+    app ==>|"1. ask for a token"| md
+    md ==>|"2. token for web-server,<br/>limited by its scopes"| app
+    app ==>|"3. call with the token"| api
+    api -.->|"4. does web-server<br/>have a role for this?"| iam
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class app eng
+    class md,iam ctrl
+    class api tgt
+    style vm fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+```
+
+Two settings decide what they can do:
 
 - **IAM roles granted to the service account.** This one has none, because nginx calls no Google APIs. If the VM later needed to read a bucket, you'd grant `roles/storage.objectViewer` on that bucket to this account, exactly as in [Cloud Storage](cloud-storage.md#access-iam-only-never-public).
 - **Access scopes**, an older, coarser limit applied on top of IAM. `cloud-platform` means "no extra limit", so IAM alone decides. That's Google's recommendation: one place to manage access instead of two.
@@ -314,6 +351,39 @@ terraform output
 
 `url` is the VM's external IP as an `http://` address, and `ssh_command` the full `gcloud compute ssh` command. The VM is running as soon as `apply` finishes, but the startup script needs about a minute more to install nginx:
 
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    apply["🛠️ terraform apply<br/>finishes"]
+    boot["🖥️ VM boots<br/>Debian 12"]
+    agent["guest agent reads<br/>startup-script<br/>from metadata"]
+    apt["apt-get install nginx<br/>through the external IP"]
+    page["index.html written,<br/>nginx serving"]
+    ok(["✅ curl answers"])
+
+    apply ==> boot ==> agent ==> apt ==> page ==> ok
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class apply,boot,agent,apt eng
+    class page ctrl
+    class ok tgt
+```
+
+Until the last step, nothing listens on port 80, so `curl` gets "connection refused" even though the VM is running and the firewall allows it. Once nginx is up:
+
 ```bash
 curl "$(terraform output -raw url)"
 ```
@@ -323,7 +393,7 @@ curl "$(terraform output -raw url)"
 <p>Zone: us-central1-a</p>
 ```
 
-If `curl` can't connect, wait a little and try again: nginx isn't installed yet. Then look inside:
+If you got "connection refused", wait a little and try again. Then look inside:
 
 ```bash
 $(terraform output -raw ssh_command)
@@ -341,7 +411,47 @@ exit
 
 ## Changing a running VM
 
-Terraform changes a VM one of three ways, and the plan says which before anything happens. Try two of them.
+Terraform changes a VM one of three ways, and the plan says which before anything happens:
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    edit["✏️ you change<br/>an argument"]
+    q{"what can GCP<br/>do with it?"}
+    live["~ update in-place<br/>no downtime"]
+    stopq{"allow_stopping_<br/>for_update?"}
+    restart["~ update in-place<br/>stop, change, start"]
+    fail["❌ apply fails"]
+    replace["-/+ replace<br/>new VM, new disk,<br/>new external IP"]
+
+    edit ==> q
+    q ==>|"change it live<br/>labels, tags"| live
+    q ==>|"change it while stopped<br/>machine_type"| stopq
+    stopq ==>|"true"| restart
+    stopq -.->|"false"| fail
+    q ==>|"can't change it<br/>metadata_startup_script,<br/>zone, boot image"| replace
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class edit,q,stopq ctrl
+    class live,restart tgt
+    class replace eng
+    class fail bad
+```
+
+Try the stop-and-change path and the replacement.
 
 ### Change it in place: the machine type
 
