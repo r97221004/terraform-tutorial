@@ -89,7 +89,7 @@ By the end you'll be able to:
 - **Write idiomatic HCL**: variables, outputs, `for_each`, `lifecycle`, and functions, without copy-paste.
 - **Run state like a team**: a GCS backend with locking, plus drift detection and refactoring with `moved`, `import`, and `removed`.
 - **Build GCP foundations correctly**: enabled APIs, least-privilege IAM (and the `_iam_policy` vs. `_iam_member` trap), and secrets.
-- **Provision core GCP services**: a private VPC with Cloud NAT and tight firewall rules, and buckets whose data gets cheaper as it ages.
+- **Provision core GCP services**: a private VPC with Cloud NAT and tight firewall rules, buckets whose data gets cheaper as it ages, and VMs with their own identity.
 - **Package and promote**: write your own modules, consume registry modules, and separate dev from prod.
 - **Stand up AI infrastructure**: GKE, GPU node pools with Spot and scale-to-zero, Workload Identity, and model storage.
 - **Ship it safely**: `terraform test`, linting, security scanning, and GitHub Actions that authenticate to GCP with no JSON keys.
@@ -149,6 +149,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup come
 
 - [**Networking**](docs/gcp-services/networking.md): VPC, secondary ranges, Cloud NAT, and firewall rules.
 - [**Cloud Storage**](docs/gcp-services/cloud-storage.md): locations, storage classes, lifecycle rules, and `gcloud storage`.
+- [**Compute Engine**](docs/gcp-services/compute-engine.md): a web server VM with a service account, a startup script, and IAP SSH.
 
 **Part 5 — Modules & Environments**
 

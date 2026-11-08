@@ -412,4 +412,4 @@ terraform destroy
 
 ---
 
-[← Cloud Storage](../gcp-services/cloud-storage.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)
+[← Compute Engine](../gcp-services/compute-engine.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)

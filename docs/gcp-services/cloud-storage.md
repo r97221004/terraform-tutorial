@@ -487,4 +487,4 @@ rm -rf raw terraform.tfvars
 
 ---
 
-[← Networking](networking.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)
+[← Networking](networking.md) · [↑ Contents](../../README.md) · [Compute Engine →](compute-engine.md)

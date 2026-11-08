@@ -164,7 +164,7 @@ flowchart LR
     style custom fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
 ```
 
-If your project has a `default` network, don't use it. [Projects & APIs](../gcp-foundations/projects-and-apis.md#should-terraform-create-the-project) showed `auto_create_network = false` for projects Terraform creates; for your sandbox, you can delete it with `gcloud compute networks delete default` once nothing uses it.
+If your project has a `default` network, don't build anything real on it. [Compute Engine](compute-engine.md) uses it once, so the first VM needs nothing else. [Projects & APIs](../gcp-foundations/projects-and-apis.md#should-terraform-create-the-project) showed `auto_create_network = false` for projects Terraform creates; for your sandbox, you can delete it with `gcloud compute networks delete default` after the Compute Engine chapter.
 
 ## 2. In the Console
 
