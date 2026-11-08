@@ -15,6 +15,16 @@ resource "google_service_account" "web" {
   display_name = "Compute Engine chapter web server"
 }
 
+# A second disk for data. It's its own resource, so it outlives the VM:
+# when the VM is replaced, the new one attaches this same disk.
+resource "google_compute_disk" "data" {
+  project = google_project_service.enabled["compute.googleapis.com"].project
+  name    = "web-1-data"
+  zone    = var.zone
+  size    = 10
+  type    = "pd-standard" # with the boot disk, 20 GB of the free tier's 30
+}
+
 resource "google_compute_instance" "web" {
   project      = google_project_service.enabled["compute.googleapis.com"].project
   name         = "web-1"
@@ -30,6 +40,12 @@ resource "google_compute_instance" "web" {
       size  = 10
       type  = "pd-standard" # the free tier covers 30 GB of standard disk
     }
+  }
+
+  # On the VM: /dev/disk/by-id/google-data. startup.sh formats and mounts it.
+  attached_disk {
+    source      = google_compute_disk.data.id
+    device_name = "data"
   }
 
   network_interface {

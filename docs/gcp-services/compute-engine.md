@@ -52,7 +52,7 @@ flowchart LR
     apt(["📦 Debian package mirrors"])
 
     subgraph net["🌐 default network · subnet us-central1"]
-        vm["🖥️ VM web-1 · us-central1-a<br/>e2-micro · Debian 12 boot disk<br/>internal 10.128.0.x<br/>external IP (ephemeral)<br/>service account web-server<br/>tags http-server, allow-iap-ssh"]
+        vm["🖥️ VM web-1 · us-central1-a<br/>e2-micro · Debian 12 boot disk<br/>data disk web-1-data at /mnt/data<br/>internal 10.128.0.x<br/>external IP (ephemeral)<br/>service account web-server<br/>tags http-server, allow-iap-ssh"]
     end
 
     browser ==>|"tcp:80<br/>web-allow-http"| vm
@@ -76,6 +76,7 @@ A VM is a handful of choices, each of which you'll set in Terraform:
 | **Zone** | a VM runs in one zone, such as `us-central1-a`. Its boot disk lives there too |
 | **Machine type** | CPUs and memory. A family prefix plus a size: `e2-micro`, `e2-standard-4`, `g2-standard-4` |
 | **Boot disk and image** | the disk the OS boots from, created from an **image** such as Debian 12 |
+| **Additional disks** | more persistent disks attached to the VM, typically for data. Each is a resource of its own |
 | **Network interface** | the subnet the VM joins and its **internal IP**, plus an optional **external IP** |
 | **Service account** | the identity programs on the VM use to call Google APIs |
 | **Metadata and startup script** | key-value settings the VM can read; the `startup-script` key runs as root on every boot |
@@ -104,6 +105,7 @@ The [free tier](https://cloud.google.com/free/docs/free-cloud-features#compute) 
 | Region, Zone | `zone` | picked for you | the provider's `zone`, if set |
 | Machine configuration | `machine_type` | `e2-medium` | required |
 | Boot disk: image, size, type | `boot_disk { initialize_params { … } }` | Debian, 10 GB, balanced | required |
+| Additional storage: Add new disk | a `google_compute_disk`, plus `attached_disk { }` | none | none |
 | Identity and API access | `service_account { email, scopes }` | the Compute Engine default service account | only what you set |
 | Firewall: Allow HTTP traffic | `tags = ["http-server"]`, plus a firewall rule | off | separate `google_compute_firewall` |
 | Networking: network, subnet | `network_interface { network, subnetwork }` | `default` | required |
@@ -267,9 +269,17 @@ Don't attach the **Compute Engine default service account** instead. In many pro
 
 ```bash
 #!/bin/bash
-# Runs as root on every boot. Installs nginx the first time, then writes a
-# page that names this VM and its zone.
+# Runs as root on every boot. Mounts the data disk, installs nginx the first
+# time, then writes a page that names this VM and its zone.
 set -euo pipefail
+
+# The data disk: format it only if it has no filesystem yet, then mount it.
+disk=/dev/disk/by-id/google-data
+if ! blkid "$disk" >/dev/null; then
+  mkfs.ext4 -m 0 "$disk"
+fi
+mkdir -p /mnt/data
+mountpoint -q /mnt/data || mount -o discard,defaults "$disk" /mnt/data
 
 if ! command -v nginx >/dev/null; then
   apt-get update
@@ -285,11 +295,55 @@ cat >/var/www/html/index.html <<HTML
 HTML
 ```
 
-- **It runs on every boot**, not just the first, so it's written to be safe to repeat: nginx is installed only if it's missing.
+- **It runs on every boot**, not just the first, so it's written to be safe to repeat: the data disk is formatted only if it's empty, and nginx is installed only if it's missing. The disk part is explained [next](#a-data-disk-that-outlives-the-vm).
 - **The metadata server** at `metadata.google.internal` answers questions about the VM itself, such as its zone. The `Metadata-Flavor: Google` header is required.
 - **`metadata_startup_script` forces a replacement when it changes**: Terraform destroys the VM and creates a new one that runs the new script from a clean disk. That's predictable, and the reason this example uses it. The alternative is `metadata = { startup-script = … }`, which updates in place and runs the new script only at the next boot, on a disk that still has whatever the old script did. The two can't be used together.
 
 A startup script is fine for installing one package. When setup grows, the usual next steps are a custom image with everything preinstalled (built with a tool such as Packer), or containers.
+
+### A data disk that outlives the VM
+
+The boot disk belongs to the VM: when the VM is replaced, its boot disk is deleted and a new one is created from the image. Anything worth keeping goes on a second disk, created as its own resource:
+
+```hcl
+# A second disk for data. It's its own resource, so it outlives the VM:
+# when the VM is replaced, the new one attaches this same disk.
+resource "google_compute_disk" "data" {
+  project = google_project_service.enabled["compute.googleapis.com"].project
+  name    = "web-1-data"
+  zone    = var.zone
+  size    = 10
+  type    = "pd-standard" # with the boot disk, 20 GB of the free tier's 30
+}
+```
+
+and attached in the VM, next to the boot disk:
+
+```hcl
+  # On the VM: /dev/disk/by-id/google-data. startup.sh formats and mounts it.
+  attached_disk {
+    source      = google_compute_disk.data.id
+    device_name = "data"
+  }
+```
+
+- **A disk lives in one zone**, the VM's. `zone = var.zone` keeps them together; a VM can't attach a disk from another zone.
+- **`device_name`** fixes the disk's path on the VM: `/dev/disk/by-id/google-data`. Device letters like `/dev/sdb` can change between boots; this path doesn't.
+- **Terraform attaches the disk, but doesn't put a filesystem on it.** A new disk is empty, unformatted space. The first lines of `startup.sh` handle that, on every boot:
+
+```bash
+# The data disk: format it only if it has no filesystem yet, then mount it.
+disk=/dev/disk/by-id/google-data
+if ! blkid "$disk" >/dev/null; then
+  mkfs.ext4 -m 0 "$disk"
+fi
+mkdir -p /mnt/data
+mountpoint -q /mnt/data || mount -o discard,defaults "$disk" /mnt/data
+```
+
+`blkid` finds no filesystem only on a brand-new disk, so `mkfs.ext4` runs once, never on a disk that already holds data. Then the disk is mounted at `/mnt/data` if it isn't already. Because the script mounts it on every boot, nothing needs to go in `/etc/fstab`.
+
+**Need another disk later?** Add another `google_compute_disk` and another `attached_disk` block in the VM, with its own `device_name`. For several disks, a map with `for_each` on the disk resource and a `dynamic "attached_disk"` block keeps the VM to one block. There's also a separate `google_compute_attached_disk` resource, for disks managed outside the VM's configuration, but then the VM needs `lifecycle { ignore_changes = [attached_disk] }`, or the two resources fight over the same setting. Keeping disks in the VM is simpler.
 
 ### Firewall rules for the VM
 
@@ -339,11 +393,11 @@ resource "google_compute_firewall" "allow_iap_ssh" {
 ## Apply it
 
 ```bash
-terraform plan    # Plan: 6 to add, 0 to change, 0 to destroy.
+terraform plan    # Plan: 7 to add, 0 to change, 0 to destroy.
 terraform apply
 ```
 
-Six resources: two APIs, the service account, the VM, and two firewall rules. The outputs tell you where to look:
+Seven resources: two APIs, the service account, the data disk, the VM, and two firewall rules. The outputs tell you where to look:
 
 ```bash
 terraform output
@@ -403,6 +457,7 @@ The first time, `gcloud` creates an SSH key for you and adds it to the project. 
 
 ```bash
 sudo journalctl -u google-startup-scripts.service   # the startup script's output
+df -h / /mnt/data                                   # the boot disk and the data disk
 systemctl status nginx
 exit
 ```
@@ -467,13 +522,32 @@ The ephemeral external IP can change when the VM stops, so run `terraform output
 
 ### Replace it: the startup script
 
-Edit the page text in `startup.sh`, for example change `Hello from` to `Hi from`, then plan:
+First, leave a file on each disk:
+
+```bash
+$(terraform output -raw ssh_command) \
+  --command='echo kept | sudo tee /mnt/data/note.txt; echo lost > ~/note.txt'
+```
+
+Then edit the page text in `startup.sh`, for example change `Hello from` to `Hi from`, and plan:
 
 ```bash
 terraform plan
 ```
 
-This time the plan shows `-/+ destroy and then create replacement`, with `# forces replacement` next to `metadata_startup_script`. A new VM means a new boot disk, a new external IP, and a fresh run of the script. Put the text back if you apply it, or keep it: either way, nothing on the old disk survives.
+This time the plan shows `-/+ destroy and then create replacement`, with `# forces replacement` next to `metadata_startup_script`. The data disk isn't in the plan at all. Apply it:
+
+```bash
+terraform apply
+```
+
+Give the new VM a minute to boot and run the startup script, then look again:
+
+```bash
+$(terraform output -raw ssh_command) --command='cat /mnt/data/note.txt; ls ~/note.txt'
+```
+
+`/mnt/data/note.txt` still says `kept`: the new VM attached the same data disk, and the startup script found its filesystem and mounted it without formatting. `~/note.txt` is gone, along with everything else on the old boot disk. The new VM also has a new external IP, so check `terraform output url`. Put the page text back afterwards, or keep it.
 
 The third way, `~` on an attribute that GCP can change live, like `labels`, needs neither a stop nor a replacement. Reading the plan for `~`, `~` with a stop, and `-/+` before every `apply` is the habit that keeps a VM change from becoming an outage.
 
@@ -489,7 +563,7 @@ The third way, `~` on an attribute that GCP can change live, like `labels`, need
 
 1. The Console VM has an ephemeral external IP, because that's the Console's default. The Terraform VM has none, because Terraform only creates what you write. It's reachable only from inside its network, and on the `default` network it can't reach the internet either.
 2. No. Scopes only limit what IAM allows; they never grant anything. With no roles, the account can't read the bucket. Grant `roles/storage.objectViewer` on that bucket to it.
-3. They're gone. Changing `metadata_startup_script` replaces the VM, which creates a new boot disk from the image. Keep data you care about off the boot disk: in Cloud Storage, a database, or a separate persistent disk.
+3. They're gone. Changing `metadata_startup_script` replaces the VM, which creates a new boot disk from the image. Keep data you care about off the boot disk: on a separate disk like `web-1-data`, in Cloud Storage, or in a database.
 4. A property that can only change while the VM is stopped, such as `machine_type`. Setting it lets Terraform stop the VM, apply the change, and start it again, with a short downtime instead of a replacement.
 
 </details>
@@ -500,7 +574,7 @@ The third way, `~` on an attribute that GCP can change live, like `labels`, need
 - **No external IPs on real services.** Put VMs in a custom VPC with Cloud NAT ([Networking](networking.md)), and public traffic through a load balancer.
 - **SSH only through IAP**, with a firewall rule for `35.235.240.0/20`, never `0.0.0.0/0` on port 22.
 - **Use image families** like `debian-cloud/debian-12` instead of pinning an image by name, so new VMs get security updates.
-- **Treat VMs as replaceable.** Write startup scripts that are safe to rerun, keep data off the boot disk, and read every plan for `-/+` before applying.
+- **Treat VMs as replaceable.** Write startup scripts that are safe to rerun, keep data on a separate disk or a storage service, never the boot disk, and read every plan for `-/+` before applying.
 - **Start with E2** and change the machine type when you have a reason; with `allow_stopping_for_update`, it's a short stop, not a rebuild.
 
 ## Clean up
@@ -509,7 +583,7 @@ The third way, `~` on an attribute that GCP can change live, like `labels`, need
 terraform destroy
 ```
 
-This deletes the VM, its boot disk, its service account, and the two firewall rules. It leaves the `default` network and the two APIs, which cost nothing. A stopped VM still bills for its disk and, if reserved, its IP; destroying it is the only way to stop all charges.
+This deletes the VM, its boot disk, the data disk and everything on it, the service account, and the two firewall rules. It leaves the `default` network and the two APIs, which cost nothing. A stopped VM still bills for its disk and, if reserved, its IP; destroying it is the only way to stop all charges.
 
 ---
 

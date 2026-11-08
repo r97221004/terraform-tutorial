@@ -1,7 +1,15 @@
 #!/bin/bash
-# Runs as root on every boot. Installs nginx the first time, then writes a
-# page that names this VM and its zone.
+# Runs as root on every boot. Mounts the data disk, installs nginx the first
+# time, then writes a page that names this VM and its zone.
 set -euo pipefail
+
+# The data disk: format it only if it has no filesystem yet, then mount it.
+disk=/dev/disk/by-id/google-data
+if ! blkid "$disk" >/dev/null; then
+  mkfs.ext4 -m 0 "$disk"
+fi
+mkdir -p /mnt/data
+mountpoint -q /mnt/data || mount -o discard,defaults "$disk" /mnt/data
 
 if ! command -v nginx >/dev/null; then
   apt-get update
