@@ -70,6 +70,61 @@ flowchart LR
 | **Cloud Router + Cloud NAT** | lets VMs without public IPs open connections to the internet, and nothing connect back in |
 | **Firewall rules** | which traffic may reach which VMs. With no rules, nothing inbound gets through |
 
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart TB
+    subgraph vpc["🌐 VPC ml-vpc: global, spans every region"]
+        direction LR
+        subgraph sub1["📍 subnet ml-vpc-gke-us-central1<br/>region us-central1 · 10.10.0.0/20"]
+            direction LR
+            subgraph za["zone us-central1-a"]
+                vm1["🖥️ VM<br/>10.10.0.2"]
+            end
+            subgraph zb["zone us-central1-b"]
+                vm2["🖥️ VM<br/>10.10.0.3"]
+            end
+        end
+        subgraph sub2["📍 a second subnet, if you added one<br/>region europe-west1 · 10.20.0.0/20"]
+            vm3["🖥️ VM<br/>10.20.0.2"]
+        end
+        fw["🧱 firewall rules<br/>belong to the VPC,<br/>select VMs by tag or service account"]
+    end
+
+    vm1 <-->|"internal IPs"| vm2
+    vm2 <-->|"internal IPs, across regions"| vm3
+    fw -.->|"applies to"| vm1
+    fw -.->|"applies to"| vm3
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class vm1,vm2,vm3 eng
+    class fw ctrl
+    style vpc fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+    style sub1 fill:#1E293B,stroke:#16A34A,color:#FFFFFF,fillStyle:solid
+    style sub2 fill:#1E293B,stroke:#16A34A,color:#FFFFFF,fillStyle:solid
+    style za fill:#334155,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+    style zb fill:#334155,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+```
+
+Each layer has a different scope, and that decides where things go:
+
+- **The VPC is global.** One network covers every region, and VMs in different regions reach each other on internal IPs, with no VPN in between, as long as the firewall allows it.
+- **A subnet is regional.** It owns an IP range in one region and serves every zone there. This chapter creates one subnet, in `us-central1`; the `europe-west1` one only shows where a second region would go.
+- **A VM is zonal**, and takes its internal IP from the subnet its network interface is in. GCP reserves four addresses in every primary range, the first two and the last two, so the first VM in `10.10.0.0/20` gets `10.10.0.2`.
+- **Firewall rules belong to the VPC, not to a subnet**, and pick the VMs they apply to by network tag or service account, wherever those VMs are.
+
 ### Three kinds of VPC
 
 A VPC comes in one of three forms, and the difference is who picks the subnets:
@@ -81,6 +136,42 @@ A VPC comes in one of three forms, and the difference is who picks the subnets:
 | **Custom mode** | a VPC created with custom subnet creation | only the ones you create, with ranges you choose | none |
 
 The `default` network is an auto-mode VPC with permissive rules added. Auto-mode subnets use the **same ranges in every project**, so two auto-mode networks collide the moment you connect them through peering or VPN, and they spend address space in regions you'll never use. **Use custom mode**, which is what this chapter builds.
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    subgraph auto["auto mode: same ranges everywhere"]
+        direction LR
+        a1["project A<br/>us-central1 10.128.0.0/20"]
+        a2["project B<br/>us-central1 10.128.0.0/20"]
+        a1 <-.->|"❌ peering refused:<br/>ranges overlap"| a2
+    end
+    subgraph custom["custom mode: ranges you plan"]
+        direction LR
+        c1["project A<br/>us-central1 10.10.0.0/20"]
+        c2["project B<br/>us-central1 10.20.0.0/20"]
+        c1 <-->|"✅ peering works"| c2
+    end
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class a1,a2 bad
+    class c1,c2 tgt
+    style auto fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+    style custom fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+```
 
 If your project has a `default` network, don't use it. [Projects & APIs](../gcp-foundations/projects-and-apis.md#should-terraform-create-the-project) showed `auto_create_network = false` for projects Terraform creates; for your sandbox, you can delete it with `gcloud compute networks delete default` once nothing uses it.
 
@@ -259,6 +350,51 @@ Cloud NAT is billed per VM using it plus per GB processed, so an idle NAT with n
 
 Every VPC has two **implied** rules you never see in Terraform: **deny all ingress** and **allow all egress**, both at the lowest priority. A custom VPC has nothing else, so by default nothing can connect to anything. You add rules for exactly the traffic you need:
 
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart LR
+    internet(["🌍 anyone on the internet"])
+    you(["💻 you<br/>gcloud compute ssh<br/>--tunnel-through-iap"])
+    iap(["🔐 Identity-Aware Proxy<br/>35.235.240.0/20<br/>checks IAM first"])
+
+    subgraph vpc["🌐 ml-vpc"]
+        direction TB
+        vmA["🖥️ VM<br/>tag allow-iap-ssh"]
+        vmB["🖥️ VM<br/>no tag"]
+    end
+
+    out(["☁️ Cloud NAT, Google APIs"])
+
+    internet -.->|"❌ implied deny ingress"| vmA
+    you ==> iap
+    iap ==>|"✅ allow_iap_ssh<br/>tcp:22, tagged VMs only"| vmA
+    iap -.->|"❌ no tag, no rule"| vmB
+    vmA <-->|"✅ allow_internal"| vmB
+    vmB ==>|"✅ implied allow egress"| out
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class vmA,vmB eng
+    class iap,you ctrl
+    class out tgt
+    class internet bad
+    style vpc fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+```
+
+Read it rule by rule. Nothing from the internet gets in, because no rule allows it and the implied rule denies it. SSH arrives only from IAP's range, and only at tagged VMs. VMs in the VPC reach each other, and anything can go out.
+
 ```hcl
 resource "google_compute_firewall" "allow_internal" {
   name      = "${var.network_name}-allow-internal"
@@ -314,6 +450,63 @@ Everything so far is what any VM needs. The subnet's two `secondary_ip_range` bl
 | Primary | node VM IPs | `/20` | 4,096 nodes |
 | Secondary `pods` | one IP per Pod. GKE gives **each node a `/24`** by default | `/14` | 1,024 nodes × 110 Pods |
 | Secondary `services` | ClusterIP Service IPs | `/20` | 4,096 Services |
+
+```mermaid
+---
+config:
+  look: handDrawn
+  theme: default
+  themeVariables:
+    fontFamily: '"Comic Sans MS", "Comic Sans", "Segoe Print", "Bradley Hand", cursive'
+    lineColor: '#64748B'
+    edgeLabelBackground: '#475569'
+  themeCSS: |
+    .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
+---
+flowchart TB
+    subgraph subnet["📍 subnet ml-vpc-gke-us-central1"]
+        direction TB
+        subgraph primary["primary range 10.10.0.0/20: one IP per node"]
+            direction LR
+            subgraph n1["🖥️ node 1 · 10.10.0.2<br/>Pod slice 10.16.0.0/24"]
+                p1["📦 Pod<br/>10.16.0.5"]
+                p2["📦 Pod<br/>10.16.0.6"]
+            end
+            subgraph n2["🖥️ node 2 · 10.10.0.3<br/>Pod slice 10.16.1.0/24"]
+                p3["📦 Pod<br/>10.16.1.4"]
+            end
+        end
+        podsr["secondary range pods<br/>10.16.0.0/14<br/>cut into one /24 per node"]
+        svcr["secondary range services<br/>10.10.16.0/20"]
+    end
+
+    svc["🔀 Service tokenizer<br/>ClusterIP 10.10.16.10<br/>virtual: on no interface"]
+
+    podsr -.->|"/24 slice"| n1
+    podsr -.->|"/24 slice"| n2
+    svcr -.->|"ClusterIPs come from"| svc
+    p2 ==>|"calls 10.10.16.10"| svc
+    svc ==>|"forwarded to a Pod IP"| p3
+
+    classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
+    classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
+    classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
+    class p1,p2,p3 tgt
+    class svc ctrl
+    class podsr,svcr eng
+    style subnet fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
+    style primary fill:#1E293B,stroke:#16A34A,color:#FFFFFF,fillStyle:solid
+    style n1 fill:#334155,stroke:#7B42BC,color:#FFFFFF,fillStyle:solid
+    style n2 fill:#334155,stroke:#7B42BC,color:#FFFFFF,fillStyle:solid
+```
+
+The addresses are examples; GKE picks the actual ones. What matters is where each kind comes from:
+
+- **Nodes are VMs**, so they take IPs from the subnet's primary range, like any VM.
+- **Pods** get IPs from the `pods` range. GKE hands each node a `/24` slice of it, and the Pods on that node take addresses from the slice. That's why the Pod range must be so much bigger than the node range.
+- **Services** get a stable ClusterIP from the `services` range. It isn't on any network interface: traffic to it is forwarded to one of the Service's Pods, at that Pod's real IP.
+- **The firewall sees node and Pod IPs, never ClusterIPs.** That's why [`allow_internal`](#firewall-rules) lists the primary range and the `pods` range as sources, and not the `services` range.
 
 The Pod range is the one people make too small: a `/24` per node means a `/20` Pod range runs out at **16 nodes**, and you can't grow it in place. Size it for the largest cluster you might ever run. `terraform console` checks the math:
 
