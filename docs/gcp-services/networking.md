@@ -82,28 +82,21 @@ config:
   themeCSS: |
     .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
 ---
-flowchart TB
+flowchart LR
     subgraph vpc["🌐 VPC ml-vpc: global, spans every region"]
-        direction LR
-        subgraph sub1["📍 subnet ml-vpc-gke-us-central1<br/>region us-central1 · 10.10.0.0/20"]
-            direction LR
-            subgraph za["zone us-central1-a"]
-                vm1["🖥️ VM<br/>10.10.0.2"]
-            end
-            subgraph zb["zone us-central1-b"]
-                vm2["🖥️ VM<br/>10.10.0.3"]
-            end
+        fw["🧱 firewall rules<br/>VPC-wide: pick VMs by<br/>tag or service account"]
+        subgraph sub1["📍 subnet ml-vpc-gke-us-central1<br/>us-central1 · 10.10.0.0/20"]
+            vm1["🖥️ VM in us-central1-a<br/>10.10.0.2"]
+            vm2["🖥️ VM in us-central1-b<br/>10.10.0.3"]
         end
-        subgraph sub2["📍 a second subnet, if you added one<br/>region europe-west1 · 10.20.0.0/20"]
-            vm3["🖥️ VM<br/>10.20.0.2"]
+        subgraph sub2["📍 a second subnet, if you added one<br/>europe-west1 · 10.20.0.0/20"]
+            vm3["🖥️ VM in europe-west1-b<br/>10.20.0.2"]
         end
-        fw["🧱 firewall rules<br/>belong to the VPC,<br/>select VMs by tag or service account"]
     end
 
-    vm1 <-->|"internal IPs"| vm2
-    vm2 <-->|"internal IPs, across regions"| vm3
     fw -.->|"applies to"| vm1
     fw -.->|"applies to"| vm3
+    vm2 <-->|"internal IPs,<br/>across regions"| vm3
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
@@ -114,8 +107,6 @@ flowchart TB
     style vpc fill:#000000,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
     style sub1 fill:#1E293B,stroke:#16A34A,color:#FFFFFF,fillStyle:solid
     style sub2 fill:#1E293B,stroke:#16A34A,color:#FFFFFF,fillStyle:solid
-    style za fill:#334155,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
-    style zb fill:#334155,stroke:#94A3B8,color:#FFFFFF,fillStyle:solid
 ```
 
 Each layer has a different scope, and that decides where things go:
