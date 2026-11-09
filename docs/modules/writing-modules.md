@@ -412,4 +412,4 @@ terraform destroy
 
 ---
 
-[← Cloud Functions](../gcp-services/cloud-functions.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)
+[← BigQuery](../gcp-services/bigquery.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)

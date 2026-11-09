@@ -1,0 +1,6 @@
+[
+  { "name": "order_id",   "type": "STRING",  "mode": "REQUIRED" },
+  { "name": "order_date", "type": "DATE",    "mode": "REQUIRED" },
+  { "name": "customer",   "type": "STRING",  "mode": "NULLABLE" },
+  { "name": "amount",     "type": "NUMERIC", "mode": "NULLABLE" }
+]

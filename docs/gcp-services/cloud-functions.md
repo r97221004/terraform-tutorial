@@ -371,4 +371,4 @@ gcloud artifacts repositories delete gcf-artifacts --location="$TF_VAR_region"
 
 ---
 
-[← Cloud Run](cloud-run.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)
+[← Cloud Run](cloud-run.md) · [↑ Contents](../../README.md) · [BigQuery →](bigquery.md)

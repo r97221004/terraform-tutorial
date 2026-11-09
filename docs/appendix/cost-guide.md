@@ -19,6 +19,7 @@ Most of this guide costs nothing or cents. Part 6 and the capstone run a GKE clu
 | Part 4: Compute Engine | one `e2-micro` VM, two 10 GB standard disks, an ephemeral external IP | $0 for the VM and disk on the free tier; the external IP ~$0.005/hour while the VM runs |
 | Part 4: Cloud Run | one service, scaled to zero when idle | $0: well inside the free tier's monthly requests and compute |
 | Part 4: Cloud Functions | two functions, two small buckets, the built images in Artifact Registry | $0: builds, calls, and image storage fit in the free tiers |
+| Part 4: BigQuery | one dataset, a table with eight rows, a view, a few queries | $0: far inside the free 10 GB of storage and 1 TB of queries a month |
 | Part 4/5: networks | VPC, subnet, firewall, Cloud Router + NAT | ~$0 with no VMs; NAT is billed per VM using it |
 | Part 6: GKE cluster | cluster fee + `e2-standard-4` system node + disks | **~$0.15–0.25 per hour** |
 | Part 6: GPU pool | `g2-standard-4` with an L4, Spot | **$0 at zero nodes; roughly $0.25–0.35 per hour per node** while a GPU Pod runs |

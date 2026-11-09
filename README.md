@@ -152,6 +152,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup come
 - [**Compute Engine**](docs/gcp-services/compute-engine.md): a web server VM with a service account, a startup script, and IAP SSH.
 - [**Cloud Run**](docs/gcp-services/cloud-run.md): a public container service that scales to zero, and its revisions.
 - [**Cloud Functions**](docs/gcp-services/cloud-functions.md): deploy source code, redeploy on change, and run on file uploads.
+- [**BigQuery**](docs/gcp-services/bigquery.md): datasets, tables, and views as code, and the schema change that deletes rows.
 
 **Part 5 — Modules & Environments**
 
