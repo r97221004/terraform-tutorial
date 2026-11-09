@@ -191,6 +191,7 @@ removed {
 | Bucket: uniform access, public access prevention, lifecycle rules by age and class | [Cloud Storage](../gcp-services/cloud-storage.md) |
 | VM: own service account with `cloud-platform` scope, `allow_stopping_for_update`, IAP SSH by tag | [Compute Engine](../gcp-services/compute-engine.md) |
 | Cloud Run: own service account, `max_instance_count`, `cpu_idle = true` with `resources`, invoker on the service | [Cloud Run](../gcp-services/cloud-run.md) |
+| Function source: `archive_file` zip, hash in the object name; event trigger roles | [Cloud Functions](../gcp-services/cloud-functions.md) |
 | Secret container in Terraform, value via `gcloud` or `*_wo` | [Secret Manager](../gcp-foundations/secrets.md) |
 | State in GCS: versioned, `prevent_destroy`, one prefix per root | [Remote Backend](../state/remote-backend.md) |
 | Separate node pools, private nodes, DNS endpoint | [GKE Cluster](../ai-infra/gke-cluster.md) |

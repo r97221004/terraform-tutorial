@@ -151,6 +151,7 @@ If it doesn't, follow [Setup](docs/getting-started/setup.md). The GCP setup come
 - [**Cloud Storage**](docs/gcp-services/cloud-storage.md): locations, storage classes, lifecycle rules, and `gcloud storage`.
 - [**Compute Engine**](docs/gcp-services/compute-engine.md): a web server VM with a service account, a startup script, and IAP SSH.
 - [**Cloud Run**](docs/gcp-services/cloud-run.md): a public container service that scales to zero, and its revisions.
+- [**Cloud Functions**](docs/gcp-services/cloud-functions.md): deploy source code, redeploy on change, and run on file uploads.
 
 **Part 5 — Modules & Environments**
 

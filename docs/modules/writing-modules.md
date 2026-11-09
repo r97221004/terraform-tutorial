@@ -412,4 +412,4 @@ terraform destroy
 
 ---
 
-[← Cloud Run](../gcp-services/cloud-run.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)
+[← Cloud Functions](../gcp-services/cloud-functions.md) · [↑ Contents](../../README.md) · [Using Registry Modules →](registry-modules.md)

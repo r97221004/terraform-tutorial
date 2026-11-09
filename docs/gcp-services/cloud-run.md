@@ -634,4 +634,4 @@ rm -f terraform.tfvars
 
 ---
 
-[← Compute Engine](compute-engine.md) · [↑ Contents](../../README.md) · [Writing Modules →](../modules/writing-modules.md)
+[← Compute Engine](compute-engine.md) · [↑ Contents](../../README.md) · [Cloud Functions →](cloud-functions.md)
