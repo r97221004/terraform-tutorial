@@ -395,12 +395,30 @@ flowchart LR
 ```
 
 ```bash
-terraform output latest_revision
 gcloud run revisions list --service=hello --region="$TF_VAR_region"
 curl "$(terraform output -raw url)"
 ```
 
-The list has both revisions; the page now names `hello-00002-…`. The old revision stays, receiving no traffic and costing nothing, so rolling back is a traffic change rather than a rebuild. A deploy that never becomes ready, say a typo in the image name, leaves traffic on the old revision, and `apply` reports the error.
+The list has both revisions, with `hello-00002-…` active, and the page now names `hello-00002-…`. Now ask Terraform:
+
+```bash
+terraform output latest_revision
+```
+
+```
+"projects/…/services/hello/revisions/hello-00001-…"
+```
+
+Still the old one. `terraform output` doesn't ask GCP; it prints values saved in state when the outputs were last worked out. During the plan, the provider kept `latest_ready_revision` at its old value instead of marking it `(known after apply)`, so Terraform worked out the outputs from that old value. Cloud Run only picked the new revision during `apply`, and the resource in state was updated, but the saved outputs weren't. A refresh fixes them:
+
+```bash
+terraform apply -refresh-only
+terraform output latest_revision
+```
+
+The refresh-only plan lists the two outputs changing, `latest_revision` and `traffic`, and nothing in GCP. After `yes`, the output reads `hello-00002-…`. ([State & Drift](../state/state-basics.md) covers `-refresh-only`.) The next `apply` would also fix them.
+
+The old revision stays, receiving no traffic and costing nothing, so rolling back is a traffic change rather than a rebuild. A deploy that never becomes ready, say a typo in the image name, leaves traffic on the old revision, and `apply` reports the error.
 
 Compare that with the [VM](compute-engine.md#changing-a-running-vm): there, a change either stopped the VM or replaced it. Here every change is a new revision behind the same URL, with no downtime.
 
