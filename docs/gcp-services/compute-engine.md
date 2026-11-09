@@ -463,7 +463,7 @@ If you got "connection refused", wait a little and try again. Then look inside:
 $(terraform output -raw ssh_command)
 ```
 
-The first time, `gcloud` creates an SSH key for you and adds it to the project. On the VM:
+The first time, `gcloud` creates an SSH key for you and adds it to the project ([how that works](#appendix-how-gcloud-compute-ssh-logs-you-in)). On the VM:
 
 ```bash
 sudo journalctl -u google-startup-scripts.service   # the startup script's output
@@ -594,6 +594,27 @@ terraform destroy
 ```
 
 This deletes the VM, its boot disk, the data disk and everything on it, the service account, and the two firewall rules. It leaves the `default` network and the two APIs, which cost nothing. A stopped VM still bills for its disk and, if reserved, its IP; destroying it is the only way to stop all charges.
+
+## Appendix: how `gcloud compute ssh` logs you in
+
+There's no password. The first `gcloud compute ssh` sets up key-based login in three steps:
+
+1. **It creates a key pair on your machine**: `~/.ssh/google_compute_engine` and `~/.ssh/google_compute_engine.pub`. It asks for a passphrase, which protects the private key on your machine; Enter skips it.
+2. **It adds the public key to the project's metadata**, under `ssh-keys`, with your local username (`$USER`) in front:
+
+   ```
+   matt:ssh-rsa AAAAB3NzaC1yc2E… matt@laptop
+   ```
+
+   The name before the colon becomes the account on the VM. The `matt@laptop` at the end is only a comment.
+3. **The guest agent on the VM creates the account.** Google's images run `google-guest-agent`, which watches the metadata. For each entry it creates the Linux user, puts the key in its `~/.ssh/authorized_keys`, and adds it to `google-sudoers`, so `sudo` needs no password.
+
+The key is in the project's metadata, not the VM's, so it works on every VM in the project, including a replaced `web-1`, and Terraform doesn't see it as drift on the instance. A few consequences:
+
+- **The Console's SSH button uses a different account.** It names the user after your Google account, such as `alex` for `alex@gmail.com`, so it has its own home directory.
+- **You can pick the name**: `gcloud compute ssh ubuntu@web-1 …` adds an entry for `ubuntu`, and the VM gets that account too.
+- **After the first run, plain `ssh` works too**, with the same key: `ssh -i ~/.ssh/google_compute_engine matt@EXTERNAL_IP`. That goes to port 22 on the external IP, so it needs a rule like `default-allow-ssh`, and it times out on networks that block outgoing port 22, as many office networks do. `--tunnel-through-iap` goes over HTTPS instead, so it works there.
+- **With OS Login enabled** (`enable-oslogin = "TRUE"` in metadata), none of this applies: IAM roles decide who can log in, and the username comes from the Google account.
 
 ---
 
