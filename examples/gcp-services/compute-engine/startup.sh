@@ -11,9 +11,10 @@ fi
 mkdir -p /mnt/data
 mountpoint -q /mnt/data || mount -o discard,defaults "$disk" /mnt/data
 
+# On first boot, unattended-upgrades may hold the apt lock: wait up to 5 minutes.
 if ! command -v nginx >/dev/null; then
-  apt-get update
-  apt-get install -y nginx
+  apt-get -o DPkg::Lock::Timeout=300 update
+  apt-get -o DPkg::Lock::Timeout=300 install -y nginx
 fi
 
 zone=$(curl -sf -H "Metadata-Flavor: Google" \

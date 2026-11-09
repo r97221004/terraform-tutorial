@@ -36,7 +36,7 @@ resource "google_compute_instance" "web" {
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-12" # an image family: its newest image
+      image = "ubuntu-os-cloud/ubuntu-2404-lts-amd64" # an image family: its newest image
       size  = 10
       type  = "pd-standard" # the free tier covers 30 GB of standard disk
     }

@@ -49,10 +49,10 @@ flowchart LR
     browser(["🌍 a browser<br/>anywhere"])
     you(["💻 you<br/>gcloud compute ssh<br/>--tunnel-through-iap"])
     iap(["🔐 IAP<br/>35.235.240.0/20"])
-    apt(["📦 Debian package mirrors"])
+    apt(["📦 Ubuntu package mirrors"])
 
     subgraph net["🌐 default network · subnet us-central1"]
-        vm["🖥️ VM web-1 · us-central1-a<br/>e2-micro · Debian 12 boot disk<br/>data disk web-1-data at /mnt/data<br/>internal 10.128.0.x<br/>external IP (ephemeral)<br/>service account web-server<br/>tags http-server, allow-iap-ssh"]
+        vm["🖥️ VM web-1 · us-central1-a<br/>e2-micro · Ubuntu 24.04 boot disk<br/>data disk web-1-data at /mnt/data<br/>internal 10.128.0.x<br/>external IP (ephemeral)<br/>service account web-server<br/>tags http-server, allow-iap-ssh"]
     end
 
     browser ==>|"tcp:80<br/>web-allow-http"| vm
@@ -75,7 +75,7 @@ A VM is a handful of choices, each of which you'll set in Terraform:
 |---|---|
 | **Zone** | a VM runs in one zone, such as `us-central1-a`. Its boot disk lives there too |
 | **Machine type** | CPUs and memory. A family prefix plus a size: `e2-micro`, `e2-standard-4`, `g2-standard-4` |
-| **Boot disk and image** | the disk the OS boots from, created from an **image** such as Debian 12 |
+| **Boot disk and image** | the disk the OS boots from, created from an **image** such as Ubuntu 24.04 LTS |
 | **Additional disks** | more persistent disks attached to the VM, typically for data. Each is a resource of its own |
 | **Network interface** | the subnet the VM joins and its **internal IP**, plus an optional **external IP** |
 | **Service account** | the identity programs on the VM use to call Google APIs |
@@ -130,7 +130,7 @@ resource "google_compute_instance" "web" {
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-12"
+      image = "ubuntu-os-cloud/ubuntu-2404-lts-amd64"
     }
   }
 
@@ -140,7 +140,7 @@ resource "google_compute_instance" "web" {
 }
 ```
 
-That's a running Debian VM. It just can't do much:
+That's a running Ubuntu VM. It just can't do much:
 
 - **No external IP**, and the `default` network has no Cloud NAT, so the VM can't reach the internet to install anything, and nothing outside can reach it.
 - **No service account of its own**, so whatever runs on it either can't call Google APIs or, if you later attach the Compute Engine default service account, gets that account's broad project access.
@@ -165,7 +165,7 @@ resource "google_compute_instance" "web" {
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-12" # an image family: its newest image
+      image = "ubuntu-os-cloud/ubuntu-2404-lts-amd64" # an image family: its newest image
       size  = 10
       type  = "pd-standard" # the free tier covers 30 GB of standard disk
     }
@@ -174,7 +174,7 @@ resource "google_compute_instance" "web" {
 ```
 
 - **`project`** refers to the API's `google_project_service`, so Terraform enables the Compute Engine API before creating the VM ([Projects & APIs](../gcp-foundations/projects-and-apis.md#wait-for-the-api-before-using-it)). The example enables IAM the same way, for the service account.
-- **`debian-cloud/debian-12`** is an **image family**: the project `debian-cloud`, where Google publishes Debian images, and the family `debian-12`, which always points to its newest image. The VM is created from whatever image is newest at that moment.
+- **`ubuntu-os-cloud/ubuntu-2404-lts-amd64`** is an **image family**: the project `ubuntu-os-cloud`, where Canonical publishes Ubuntu images, and the family `ubuntu-2404-lts-amd64`, which always points to its newest Ubuntu 24.04 LTS image for x86 machines. The VM is created from whatever image is newest at that moment.
 - **`size` and `type`** are set explicitly so the disk stays inside the free tier: 10 GB, the image's minimum, of standard persistent disk.
 - **`allow_stopping_for_update = true`**: some changes, like `machine_type`, need the VM stopped first. Without this, Terraform refuses to make them, and you'll [try one below](#change-it-in-place-the-machine-type).
 
@@ -281,9 +281,10 @@ fi
 mkdir -p /mnt/data
 mountpoint -q /mnt/data || mount -o discard,defaults "$disk" /mnt/data
 
+# On first boot, unattended-upgrades may hold the apt lock: wait up to 5 minutes.
 if ! command -v nginx >/dev/null; then
-  apt-get update
-  apt-get install -y nginx
+  apt-get -o DPkg::Lock::Timeout=300 update
+  apt-get -o DPkg::Lock::Timeout=300 install -y nginx
 fi
 
 zone=$(curl -sf -H "Metadata-Flavor: Google" \
@@ -296,6 +297,7 @@ HTML
 ```
 
 - **It runs on every boot**, not just the first, so it's written to be safe to repeat: the data disk is formatted only if it's empty, and nginx is installed only if it's missing. The disk part is explained [next](#a-data-disk-that-outlives-the-vm).
+- **`DPkg::Lock::Timeout=300`** makes `apt-get` wait for the lock instead of failing. Ubuntu runs `unattended-upgrades` on first boot to install security updates, and it holds the same lock.
 - **The metadata server** at `metadata.google.internal` answers questions about the VM itself, such as its zone. The `Metadata-Flavor: Google` header is required.
 - **`metadata_startup_script` forces a replacement when it changes**: Terraform destroys the VM and creates a new one that runs the new script from a clean disk. That's predictable, and the reason this example uses it. The alternative is `metadata = { startup-script = … }`, which updates in place and runs the new script only at the next boot, on a disk that still has whatever the old script did. The two can't be used together.
 
@@ -419,7 +421,7 @@ config:
 ---
 flowchart LR
     apply["🛠️ terraform apply<br/>finishes"]
-    boot["🖥️ VM boots<br/>Debian 12"]
+    boot["🖥️ VM boots<br/>Ubuntu 24.04"]
     agent["guest agent reads<br/>startup-script<br/>from metadata"]
     apt["apt-get install nginx<br/>through the external IP"]
     page["index.html written,<br/>nginx serving"]
@@ -573,7 +575,7 @@ The third way, `~` on an attribute that GCP can change live, like `labels`, need
 - **One service account per VM role**, with only the IAM roles it needs; never the Compute Engine default service account. Leave scopes at `cloud-platform` and manage access with IAM.
 - **No external IPs on real services.** Put VMs in a custom VPC with Cloud NAT ([Networking](networking.md)), and public traffic through a load balancer.
 - **SSH only through IAP**, with a firewall rule for `35.235.240.0/20`, never `0.0.0.0/0` on port 22.
-- **Use image families** like `debian-cloud/debian-12` instead of pinning an image by name, so new VMs get security updates.
+- **Use image families** like `ubuntu-os-cloud/ubuntu-2404-lts-amd64` instead of pinning an image by name, so new VMs get security updates.
 - **Treat VMs as replaceable.** Write startup scripts that are safe to rerun, keep data on a separate disk or a storage service, never the boot disk, and read every plan for `-/+` before applying.
 - **Start with E2** and change the machine type when you have a reason; with `allow_stopping_for_update`, it's a short stop, not a rebuild.
 
