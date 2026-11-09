@@ -66,7 +66,7 @@ resource "google_cloud_run_v2_service" "hello" {
       type     = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
       revision = traffic.key
       percent  = traffic.value
-      tag      = trimprefix(traffic.key, "hello-") # https://v2---hello-….run.app
+      tag      = traffic.key # https://hello-v2---hello-….run.app (3-47 characters)
     }
   }
 }

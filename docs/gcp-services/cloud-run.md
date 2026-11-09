@@ -438,14 +438,14 @@ So far every new revision took 100% of the traffic as soon as it was ready. To s
       type     = "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION"
       revision = traffic.key
       percent  = traffic.value
-      tag      = trimprefix(traffic.key, "hello-") # https://v2---hello-….run.app
+      tag      = traffic.key # https://hello-v2---hello-….run.app (3-47 characters)
     }
   }
 ```
 
 - **One block per revision that gets traffic**, generated with a [`dynamic` block](../core-language/expressions.md#dynamic-blocks). With `traffic` empty, there are no blocks, which is the default behavior you've used so far. The percents must add up to 100, and the variable's validation checks that before Cloud Run does.
 - **`TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION`** points at a revision by name, so revisions need names you choose: an automatic one like `hello-00002-xyz` isn't known until after `apply`. The other type, `…_LATEST`, means "whatever revision is newest", so a second template change would quietly move that share to a revision you never tested.
-- **`tag`** gives each listed revision a URL of its own, `https://v2---hello-….run.app`, that reaches it whatever its percent, even 0. That's how you test a new revision before any user sees it.
+- **`tag`** gives each listed revision a URL of its own, `https://hello-v2---hello-….run.app`, that reaches it whatever its percent, even 0. That's how you test a new revision before any user sees it.
 - **A revision name can't be reused.** Once you set `revision`, every template change needs a new name, or `apply` fails.
 
 The rollout goes in steps, each one an edit to `terraform.tfvars` and an `apply`:
@@ -521,25 +521,53 @@ terraform apply
 
 The plan shows `~ update in-place` on `google_cloud_run_v2_service.hello`: the template's `revision` and `env` change, and a second traffic block appears. Cloud Run builds `hello-v2`, waits until it's ready, and sends it nothing. If it never becomes ready, say from a typo in the image name, `apply` fails and `hello-v1` keeps serving.
 
+Ask Cloud Run what it's doing now:
+
 ```bash
-terraform output traffic                                    # hello-v1 = 100, hello-v2 = 0
-curl "$(terraform output -raw url)"                         # still v1
-curl "$(terraform output -json tag_urls | jq -r .v2)"      # v2, before any user sees it (needs jq)
+gcloud run services describe hello --region="$TF_VAR_region"
+```
+
+```
+✔ Service hello in region us-central1
+…
+URL:     https://hello-….run.app
+Ingress: all
+Traffic:
+  100% hello-v1
+        hello-v1: https://hello-v1---hello-….run.app
+  0%   hello-v2
+        hello-v2: https://hello-v2---hello-….run.app
+…
+```
+
+`Traffic` lists each revision's share and its tag URL. Don't rely on the `traffic` and `tag_urls` outputs for this: like [`latest_revision`](#ship-a-new-revision), they're worked out at plan time, so they lag one `apply` behind. Now call both versions:
+
+```bash
+curl "$(terraform output -raw url)"       # still v1
+curl https://hello-v2---hello-….run.app   # paste the hello-v2 URL from above: v2, before any user sees it
 ```
 
 ### Step 2: send it 10%
 
-Change only the traffic, and apply:
+Change only the `traffic` line, and leave `revision` and `message` as they are:
 
 ```hcl
-traffic = { "hello-v1" = 90, "hello-v2" = 10 }
+revision = "hello-v2"
+message  = "Hello again"
+traffic  = { "hello-v1" = 90, "hello-v2" = 10 }
+```
+
+```bash
+terraform apply
 ```
 
 This time the plan changes only the two `percent` values, and no new revision is created: `revision` and `message` didn't change. About one request in ten now goes to `hello-v2`. In a real rollout, this is where you watch its error rate and latency in **Cloud Run → hello → Metrics** before going on.
 
+> ⚠️ `terraform.tfvars` is the whole desired state, not a list of changes. Remove or comment out `revision` or `message`, and it goes back to its default in `variables.tf`, so the template changes. Cloud Run then creates another revision, named automatically (`hello-00003-…`) since `revision` is now `null`, and gives it 0% because it isn't in `traffic`.
+
 ### Step 3: promote, or roll back
 
-If v2 behaves, give it everything:
+If v2 behaves, give it everything, again changing only the `traffic` line:
 
 ```hcl
 traffic = { "hello-v2" = 100 }

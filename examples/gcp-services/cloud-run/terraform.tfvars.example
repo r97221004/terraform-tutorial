@@ -1,5 +1,10 @@
 # Copy to terraform.tfvars (git-ignored), then edit it at each rollout step:
 #   cp terraform.tfvars.example terraform.tfvars
+#
+# This file is the whole desired state, not a list of changes: a line you
+# remove or comment out goes back to its default in variables.tf. Changing
+# revision or message creates a new revision, so after step 1 keep them and
+# change only traffic.
 
 # Step 0: give the running version a name, and all the traffic.
 revision = "hello-v1"
@@ -7,10 +12,14 @@ traffic = {
   "hello-v1" = 100
 }
 
-# Step 1: a new revision with no traffic yet, only its tag URL:
+# Step 1: replace the lines above with a new revision that has no traffic yet,
+# only its tag URL:
 #   revision = "hello-v2"
 #   message  = "Hello again"
 #   traffic  = { "hello-v1" = 100, "hello-v2" = 0 }
 #
-# Step 2: traffic = { "hello-v1" = 90, "hello-v2" = 10 }
-# Step 3: traffic = { "hello-v2" = 100 }
+# Step 2: keep revision and message; change only traffic:
+#   traffic  = { "hello-v1" = 90, "hello-v2" = 10 }
+#
+# Step 3: keep revision and message; change only traffic:
+#   traffic  = { "hello-v2" = 100 }
