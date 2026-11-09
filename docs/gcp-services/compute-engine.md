@@ -389,8 +389,16 @@ resource "google_compute_firewall" "allow_iap_ssh" {
 ```
 
 - **`web-allow-http`** opens port 80 to the world, but only to VMs tagged `http-server`. A web server is the one case where `0.0.0.0/0` is the point.
-- **`web-allow-iap-ssh`** is the same IAP rule as in [Networking](networking.md#firewall-rules): SSH only through Google's proxy, which checks IAM first. The `default` network may also have `default-allow-ssh`, which allows SSH from anywhere; this example doesn't rely on it, and you shouldn't either.
+- **`web-allow-iap-ssh`** is the same IAP rule as in [Networking](networking.md#firewall-rules): SSH only through Google's proxy, which checks IAM first.
 - **The rules are created on the `default` network** and removed by `terraform destroy`, along with the VM.
+
+> ⚠️ **Check for `default-allow-ssh`.** A project's original `default` network comes with this rule: port 22 from `0.0.0.0/0`, with no target tags, so it applies to every VM on the network. Firewall rules add up, and any rule that allows a connection lets it in, so while it exists, `web-1` takes SSH from the whole internet, not just through IAP. Logins still need a key, since Google's images turn off password logins, but the port is open to scanners. List the rules:
+>
+> ```bash
+> gcloud compute firewall-rules list
+> ```
+>
+> The example doesn't create or remove this rule: it isn't in the configuration, and it applies to every VM on the network, not just this one. Nothing here relies on it, so once no VM in the project needs SSH from outside IAP, delete it: `gcloud compute firewall-rules delete default-allow-ssh`.
 
 ## Apply it
 
