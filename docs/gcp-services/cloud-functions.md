@@ -101,28 +101,22 @@ config:
 ---
 flowchart LR
     edit(["✏️ edit main.py"])
+    f1["🗜️ function.zip<br/>same name"]
+    f2["⚙️ function: no change<br/>old code keeps running"]
+    h1["🗜️ function-‹hash›.zip<br/>new name"]
+    h2["⚙️ function: updated<br/>rebuilt with new code"]
 
-    subgraph fixed["❌ fixed name"]
-        f1["🗜️ function.zip<br/>new bytes, same name"]
-        f2["⚙️ function: object unchanged<br/>No changes, old code keeps running"]
-        f1 --> f2
-    end
-
-    subgraph hashed["✅ hash in the name"]
-        h1["🗜️ function-‹new hash›.zip<br/>a new name"]
-        h2["⚙️ function: object changed<br/>updated and rebuilt"]
-        h1 --> h2
-    end
-
-    edit --> f1
-    edit --> h1
+    edit ==>|"❌ fixed name"| f1 ==> f2
+    edit ==>|"✅ hash in the name"| h1 ==> h2
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
     classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
     class edit ctrl
     class f1,h1 eng
-    class f2,h2 tgt
+    class h2 tgt
+    class f2 bad
 ```
 
 **The hash in the object name is what makes code changes deploy.** The function points at the object by name. With a fixed name like `function.zip`, changing `main.py` would upload new bytes under the same name, the function's settings wouldn't change, and Terraform would never rebuild it. With the hash in the name, any code change is a new name, and every function using it gets updated. You'll see that in [step 4](#4-change-the-code-redeploy).
