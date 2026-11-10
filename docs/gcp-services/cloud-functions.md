@@ -154,6 +154,7 @@ resource "google_cloudfunctions2_function" "hello" {
 - **`google_cloudfunctions2_function`** is the current generation of Cloud Functions, now also called Cloud Run functions. The older `google_cloudfunctions_function` is first generation; don't start anything new on it.
 - **`build_config`** is the build: `entry_point` is the name of the Python function in `main.py` to call.
 - **`service_config`** is the Cloud Run service it runs as: its own service account, memory, a cap on instances, and a timeout.
+- **No `event_trigger` block makes it an HTTP function**: it gets a URL and runs on every request to it. The code has to match: `hello_http` in `main.py` is decorated with `@functions_framework.http` and takes the request. The [upload function](#5-trigger-on-a-file-upload) adds an `event_trigger` and uses `@functions_framework.cloud_event` instead. A mismatch deploys fine and fails only when the function is called.
 
 The function is **private**. Nothing grants anyone the invoker role on it, so only accounts that already have it through a project role, such as you as Owner, can call it.
 
