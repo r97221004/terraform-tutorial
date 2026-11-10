@@ -35,16 +35,14 @@ flowchart LR
     tf(["🛠️ terraform apply"])
     bq(["📥 bq load"])
     query(["🔍 SELECT …"])
+    view["👁️ view shop.daily_revenue<br/>a saved query, no rows"]
+    orders[("📋 table shop.orders<br/>columns + rows")]
 
-    subgraph ds["🗄️ dataset shop · us-central1"]
-        orders[("📋 table orders<br/>columns + rows")]
-        view["👁️ view daily_revenue<br/>a saved query, no rows"]
-    end
-
-    tf -->|"creates the dataset,<br/>columns, and view"| ds
-    bq -->|"adds rows"| orders
-    view -->|"reads, every time"| orders
-    query --> view
+    tf ==>|"creates the columns"| orders
+    tf ==>|"creates the view"| view
+    bq ==>|"adds rows"| orders
+    query ==> view
+    view ==>|"reads, every time"| orders
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
@@ -291,26 +289,24 @@ config:
     .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
 ---
 flowchart LR
-    subgraph one["❌ one apply"]
-        o1(["protection = false<br/>+ type change"])
-        o2["🛑 apply stops<br/>state still says true"]
-        o1 --> o2
-    end
+    o1(["❌ one apply:<br/>protection = false<br/>+ type change"])
+    o2["🛑 apply stops<br/>state still says true"]
+    t1(["✅ ① apply:<br/>protection = false only"])
+    t2[("📄 state now says false")]
+    t3(["② apply:<br/>the type change"])
+    t4["⚠️ table replaced"]
 
-    subgraph two["✅ two applies"]
-        t1(["① apply:<br/>protection = false only"])
-        t2[("📄 state now says false")]
-        t3(["② apply:<br/>the type change"])
-        t4["⚠️ table replaced"]
-        t1 --> t2 --> t3 --> t4
-    end
+    o1 ==> o2
+    t1 ==> t2 ==> t3 ==> t4
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
     classDef tgt fill:#0F172A,stroke:#16A34A,stroke-width:2px,color:#FFFFFF
+    classDef bad fill:#0F172A,stroke:#DC2626,stroke-width:2px,color:#FFFFFF
     class o1,t1,t3 ctrl
     class t2 eng
-    class o2,t4 tgt
+    class t4 tgt
+    class o2 bad
 ```
 
 To change a column's type and keep the rows, don't let Terraform replace the table. Add a new column, copy the values into it with SQL, then remove the old one. Every step is an in-place change:
@@ -328,12 +324,12 @@ config:
     .edgeLabel, .edgeLabel p, .edgeLabel span { color: #FFFFFF !important; }
 ---
 flowchart LR
-    s1(["① orders.json: add amount_text<br/>terraform apply · in place"])
-    s2(["② bq query: UPDATE …<br/>SET amount_text = CAST(amount AS STRING)"])
-    s3(["③ orders.json: remove amount<br/>terraform apply · in place"])
-    rows[("📋 the rows stay<br/>through every step")]
+    s1["① add amount_text<br/>apply · in place"]
+    s2["② bq query UPDATE<br/>copy the values over"]
+    s3["③ remove amount<br/>apply · in place"]
+    rows[("📋 rows stay")]
 
-    s1 --> s2 --> s3 --> rows
+    s1 ==> s2 ==> s3 ==> rows
 
     classDef ctrl fill:#0F172A,stroke:#2563EB,stroke-width:2px,color:#FFFFFF
     classDef eng fill:#7B42BC,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
